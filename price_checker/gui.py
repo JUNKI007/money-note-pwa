@@ -467,6 +467,12 @@ class MainWindow(QMainWindow):
             use_naver=self.naverCheck.isChecked(),
         )
 
+        # 이전 worker가 있으면 정리
+        if self._worker and self._worker.isRunning():
+            self._worker.stop()
+            self._worker.quit()
+            self._worker.wait(3000)  # 최대 3초 대기
+
         self._worker = SearchWorker(
             input_path=input_path,
             output_dir=output_dir,
