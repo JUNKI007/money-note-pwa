@@ -7,8 +7,8 @@ from PySide6.QtGui import QFont, QColor
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QLineEdit, QCheckBox, QSpinBox,
-    QDoubleSpinBox, QProgressBar, QTextEdit, QFileDialog,
-    QGroupBox, QScrollArea, QFrame, QSizePolicy,
+    QProgressBar, QTextEdit, QFileDialog,
+    QGroupBox, QScrollArea, QFrame,
 )
 
 from config import AppConfig
@@ -330,7 +330,7 @@ class MainWindow(QMainWindow):
 
         title = QLabel("🍬 Jelly Price Checker")
         title.setObjectName("appTitle")
-        subtitle = QLabel("상품명 기준으로 쿠팡/네이버 최저가를 한번에 정리해요")
+        subtitle = QLabel("네이버 가격비교 최저가 조회 + 쿠팡 검색 링크 생성 보조툴")
         subtitle.setObjectName("appSubtitle")
 
         layout.addWidget(title)
@@ -384,37 +384,25 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout(box)
         layout.setSpacing(20)
 
-        # 딜레이
+        # 최대 후보 수 (네이버 검색 결과 수집 개수)
         col1 = QVBoxLayout()
-        col1.addWidget(QLabel("요청 딜레이 (초)"))
-        self.delaySpin = QDoubleSpinBox()
-        self.delaySpin.setRange(1.0, 30.0)
-        self.delaySpin.setValue(3.0)
-        self.delaySpin.setSingleStep(0.5)
-        col1.addWidget(self.delaySpin)
+        col1.addWidget(QLabel("네이버 수집 상품 수 (최대 40)"))
+        self.maxCandSpin = QSpinBox()
+        self.maxCandSpin.setRange(5, 40)
+        self.maxCandSpin.setValue(40)
+        col1.addWidget(self.maxCandSpin)
         layout.addLayout(col1)
 
-        # 최대 후보 수
+        # 검색 대상 체크박스
         col2 = QVBoxLayout()
-        col2.addWidget(QLabel("최대 후보 수"))
-        self.maxCandSpin = QSpinBox()
-        self.maxCandSpin.setRange(3, 30)
-        self.maxCandSpin.setValue(10)
-        col2.addWidget(self.maxCandSpin)
-        layout.addLayout(col2)
-
-        # 체크박스
-        col3 = QVBoxLayout()
-        self.headlessCheck = QCheckBox("브라우저 숨기기 (headless)")
-        self.headlessCheck.setChecked(False)
-        self.coupangCheck = QCheckBox("쿠팡 검색 사용")
+        self.coupangCheck = QCheckBox("쿠팡 검색 링크 생성")
         self.coupangCheck.setChecked(True)
-        self.naverCheck = QCheckBox("네이버 검색 사용")
+        self.coupangCheck.setToolTip("쿠팡 가격은 직접 조회하지 않고 검색 링크만 생성합니다")
+        self.naverCheck = QCheckBox("네이버 가격비교 최저가 조회")
         self.naverCheck.setChecked(True)
-        col3.addWidget(self.headlessCheck)
-        col3.addWidget(self.coupangCheck)
-        col3.addWidget(self.naverCheck)
-        layout.addLayout(col3)
+        col2.addWidget(self.coupangCheck)
+        col2.addWidget(self.naverCheck)
+        layout.addLayout(col2)
 
         # 검색 대상 체크 변경 시 상태 갱신
         self.coupangCheck.stateChanged.connect(self._update_ui_state)
@@ -540,8 +528,6 @@ class MainWindow(QMainWindow):
         output_dir = self.outputDirEdit.text() or os.path.dirname(input_path)
 
         config = AppConfig(
-            delay_seconds=self.delaySpin.value(),
-            headless=self.headlessCheck.isChecked(),
             max_candidates=self.maxCandSpin.value(),
             use_coupang=self.coupangCheck.isChecked(),
             use_naver=self.naverCheck.isChecked(),

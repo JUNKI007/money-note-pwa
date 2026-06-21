@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import sys
@@ -25,80 +24,66 @@ def build_result(
     coupang_candidates: list[Candidate],
     naver_candidates: list[Candidate],
 ) -> PriceResult:
-    """후보 리스트에서 최적 후보를 선택하여 PriceResult를 생성한다."""
+    """
+    네이버 가격비교 최저가 + 스마트스토어 후보 + 쿠팡 검색 링크를 조합한다.
+    배송비는 항상 None (미수집). 합계도 None.
+    """
     result = PriceResult(code=product.code, name=product.name)
     notes: list[str] = []
 
-    # --- 쿠팡 ---
-    cp_error = next((c for c in coupang_candidates if "확인불가" in c.note), None)
-    if cp_error:
-        # 가격은 기록하되 배송비/합계는 None으로 유지
-        result.coupang_price = cp_error.price
-        result.coupang_link = cp_error.link
-        notes.append(cp_error.note)
-    else:
-        cp_best = pick_best(product.name, coupang_candidates)
-        if cp_best:
-            result.coupang_price = cp_best.price
-            result.coupang_shipping = cp_best.shipping_fee
-            result.coupang_total = cp_best.total_price
-            result.coupang_link = cp_best.link
-            if cp_best.note:
-                notes.append(cp_best.note)
-        else:
-            if coupang_candidates:
-                notes.append("쿠팡 후보 없음")
+    # ── 쿠팡: 링크만 저장, 가격 없음 ──────────────────────────────────────
+    if coupang_candidates:
+        result.coupang_link = coupang_candidates[0].link
 
-    # --- 네이버 스마트스토어 ---
-    naver_error = next((c for c in naver_candidates if "확인불가" in c.note), None)
+    # ── 네이버 전체 후보: 확인불가 판별 ────────────────────────────────────
+    naver_error = next(
+        (c for c in naver_candidates if "확인불가" in c.note and not c.title),
+        None,
+    )
     if naver_error:
         notes.append(naver_error.note)
+        result.note = " / ".join(dict.fromkeys(notes))
+        return result
+
+    # 매칭 필터: 제외어 없고 유사도 기준 통과
+    matched = [
+        c for c in naver_candidates
+        if c.price is not None
+        and not is_excluded_product(product.name, c.title)
+        and score_candidate(product.name, c) >= SCORE_THRESHOLD
+    ]
+
+    # ── 스마트스토어: 매칭 후보 중 smartstore URL 필터 ──────────────────
+    ss_candidates = [c for c in matched if c.source == "naver_smartstore"]
+    ss_best = pick_best(product.name, ss_candidates) if ss_candidates else None
+    if ss_best:
+        result.smartstore_price = ss_best.price
+        # 배송비/합계 미수집 → None 유지
+        result.smartstore_link = ss_best.link
+        notes.append("스스 배송비 확인불가")
     else:
-        ss_candidates = [c for c in naver_candidates if c.source == "naver_smartstore"]
-        ss_best = pick_best(product.name, ss_candidates) if ss_candidates else None
-        if ss_best:
-            result.smartstore_price = ss_best.price
-            result.smartstore_shipping = ss_best.shipping_fee
-            result.smartstore_total = ss_best.total_price
-            result.smartstore_link = ss_best.link
-            if ss_best.note:
-                notes.append(ss_best.note)
-        else:
+        if naver_candidates and not naver_error:
             notes.append("스스 후보 없음")
 
-        # --- 네이버 최저가 (배송비 포함 기준, 확인된 것끼리만 비교) ---
-        all_naver = [c for c in naver_candidates if "확인불가" not in c.note]
-        matched = [
-            c for c in all_naver
-            if not is_excluded_product(product.name, c.title)
-            and score_candidate(product.name, c) >= SCORE_THRESHOLD
-        ]
+    # ── 네이버 최저가: 매칭 후보 중 가격 기준 최저 ─────────────────────
+    if matched:
+        lowest = min(matched, key=lambda c: c.price)  # type: ignore[return-value]
+        result.naver_lowest_mall = lowest.mall_name
+        result.naver_lowest_price = lowest.price
+        result.naver_lowest_link = lowest.link
+        notes.append("네이버 배송비 확인불가")
+    else:
+        if naver_candidates and not naver_error:
+            notes.append("네이버 일치 상품 없음")
 
-        # 배송비+가격 모두 확인된 것만 총액 비교
-        with_total = [c for c in matched if c.total_price is not None]
-        if with_total:
-            lowest = min(with_total, key=lambda c: c.total_price)
-            result.naver_lowest_mall = lowest.mall_name
-            result.naver_lowest_price = lowest.price
-            result.naver_lowest_shipping = lowest.shipping_fee
-            result.naver_lowest_total = lowest.total_price
-            result.naver_lowest_link = lowest.link
-        elif matched:
-            # 가격만 있는 최저가
-            price_only = min(matched, key=lambda c: c.price or 999999999)
-            result.naver_lowest_mall = price_only.mall_name
-            result.naver_lowest_price = price_only.price
-            result.naver_lowest_link = price_only.link
-            notes.append("배송비 확인불가")
-
-    result.note = " / ".join(dict.fromkeys(notes))  # 중복 제거
+    result.note = " / ".join(dict.fromkeys(notes))
     return result
 
 
 class SearchWorker(QThread):
-    progress = Signal(int, int)       # (current, total)
-    log = Signal(str, str)            # (message, level: "info"|"warn"|"error")
-    finished = Signal(str)            # 결과 파일 경로
+    progress = Signal(int, int)   # (current, total)
+    log = Signal(str, str)        # (message, level: "info"|"warn"|"error")
+    finished = Signal(str)        # 결과 파일 경로
 
     def __init__(self, input_path: str, output_dir: str, has_header: bool, config: AppConfig):
         super().__init__()
@@ -112,9 +97,6 @@ class SearchWorker(QThread):
         self._stop_flag = True
 
     def run(self):
-        asyncio.run(self._run_async())
-
-    async def _run_async(self):
         try:
             products = read_products(self.input_path, self.has_header)
         except Exception as e:
@@ -130,12 +112,8 @@ class SearchWorker(QThread):
         naver = NaverScraper(self.config) if self.config.use_naver else None
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = os.path.join(
-            self.output_dir, f"최저가조회결과_{timestamp}.xlsx"
-        )
-        temp_path = os.path.join(
-            self.output_dir, f"최저가조회결과_임시_{timestamp}.xlsx"
-        )
+        output_path = os.path.join(self.output_dir, f"최저가조회결과_{timestamp}.xlsx")
+        temp_path = os.path.join(self.output_dir, f"최저가조회결과_임시_{timestamp}.xlsx")
 
         try:
             for idx, product in enumerate(products):
@@ -151,24 +129,20 @@ class SearchWorker(QThread):
 
                 if coupang:
                     try:
-                        coupang_candidates = await coupang.search(product.name)
+                        coupang_candidates = coupang.search(product.name)
                     except Exception as e:
-                        self.log.emit(f"쿠팡 오류 [{product.name}]: {e}", "error")
-                        coupang_candidates = [Candidate(
-                            source="coupang", mall_name="쿠팡", title="",
-                            price=None, shipping_fee=None, total_price=None,
-                            link="", matched_score=0.0, note=f"쿠팡 확인불가: {type(e).__name__}"
-                        )]
+                        self.log.emit(f"쿠팡 링크 생성 오류 [{product.name}]: {e}", "error")
 
                 if naver:
                     try:
-                        naver_candidates = await naver.search(product.name)
+                        naver_candidates = naver.search(product.name)
                     except Exception as e:
                         self.log.emit(f"네이버 오류 [{product.name}]: {e}", "error")
                         naver_candidates = [Candidate(
                             source="naver_shopping", mall_name="", title="",
                             price=None, shipping_fee=None, total_price=None,
-                            link="", matched_score=0.0, note=f"네이버 확인불가: {type(e).__name__}"
+                            link="", matched_score=0.0,
+                            note=f"네이버 확인불가: {type(e).__name__}",
                         )]
 
                 result = build_result(product, coupang_candidates, naver_candidates)
@@ -186,10 +160,8 @@ class SearchWorker(QThread):
                         self.log.emit(f"임시 저장 실패: {e}", "warn")
 
         finally:
-            if coupang:
-                await coupang.close()
             if naver:
-                await naver.close()
+                naver.close()
 
         if results:
             try:
@@ -197,7 +169,6 @@ class SearchWorker(QThread):
                 self.log.emit(f"결과 저장 완료: {output_path}", "info")
                 self.finished.emit(output_path)
             except Exception as e:
-                # 파일이 열려 있으면 다른 이름으로 저장
                 alt_path = output_path.replace(".xlsx", "_alt.xlsx")
                 try:
                     save_results(results, alt_path)
@@ -211,12 +182,9 @@ class SearchWorker(QThread):
 
 
 def main():
-    from config import setup_playwright_browsers
-    setup_playwright_browsers()  # exe 실행 시 번들 Chromium 경로 설정
-
     from gui import MainWindow
     app = QApplication(sys.argv)
-    app.setStyle("Fusion")  # Windows 네이티브 테마 대신 Fusion 사용 → QSS 완전 적용
+    app.setStyle("Fusion")
     app.setApplicationName("Jelly Price Checker")
     window = MainWindow()
     window.show()

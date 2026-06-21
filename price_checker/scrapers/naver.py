@@ -1,159 +1,136 @@
-import asyncio
-import re
+import json
 import logging
+import re
 from urllib.parse import quote
 
-from playwright.async_api import async_playwright, Page, Browser, BrowserContext
+import requests
 
-from price_checker.models import Candidate
-from price_checker.config import AppConfig, SELECTORS
-from price_checker.scrapers.base import BaseScraper
+from models import Candidate
+from config import AppConfig, NAVER_HEADERS, SMARTSTORE_PATTERNS
+from scrapers.base import BaseScraper
 
 logger = logging.getLogger(__name__)
+
+# 네이버 쇼핑 검색 URL (가격 오름차순)
+_SEARCH_URL = (
+    "https://search.shopping.naver.com/search/all"
+    "?query={query}&sort=price_asc&pagingSize={size}"
+)
+
+# 페이지 내 __NEXT_DATA__ JSON 추출 패턴
+_NEXT_DATA_RE = re.compile(
+    r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
+    re.DOTALL,
+)
 
 _PRICE_RE = re.compile(r"[\d,]+")
 
 
-def _parse_price(text: str) -> int | None:
-    text = text.strip().replace("\xa0", "").replace(" ", "")
+def _parse_price(val) -> int | None:
+    if val is None:
+        return None
+    text = str(val).replace(",", "").strip()
+    if text.isdigit():
+        return int(text)
     m = _PRICE_RE.search(text)
-    if not m:
-        return None
-    try:
-        return int(m.group().replace(",", ""))
-    except ValueError:
-        return None
-
-
-def _parse_shipping(text: str) -> int | None:
-    text = text.strip()
-    if not text:
-        return None
-    if "무료" in text:
-        return 0
-    m = _PRICE_RE.search(text)
-    if m:
-        try:
-            return int(m.group().replace(",", ""))
-        except ValueError:
-            return None
-    return None
+    return int(m.group().replace(",", "")) if m else None
 
 
 def _is_smartstore(url: str) -> bool:
-    patterns = SELECTORS["naver"]["smartstore_patterns"]
-    return any(p in url for p in patterns)
+    return any(p in url for p in SMARTSTORE_PATTERNS)
+
+
+def _strip_html(text: str) -> str:
+    return re.sub(r"<[^>]+>", "", text or "")
+
+
+def _extract_products(html: str) -> list[dict]:
+    """__NEXT_DATA__ JSON에서 상품 목록을 추출한다."""
+    m = _NEXT_DATA_RE.search(html)
+    if not m:
+        return []
+    try:
+        data = json.loads(m.group(1))
+    except json.JSONDecodeError:
+        return []
+
+    # 기본 경로
+    try:
+        return data["props"]["pageProps"]["initialState"]["products"]["list"]
+    except (KeyError, TypeError):
+        pass
+
+    # 대안: lprice 키가 있는 리스트를 재귀 탐색 (구조 변경 대비)
+    def _find(obj, depth=0):
+        if depth > 8:
+            return None
+        if isinstance(obj, list) and obj and isinstance(obj[0], dict) and "lprice" in obj[0]:
+            return obj
+        if isinstance(obj, dict):
+            for v in obj.values():
+                r = _find(v, depth + 1)
+                if r is not None:
+                    return r
+        return None
+
+    return _find(data) or []
+
+
+def _error_candidate(note: str) -> Candidate:
+    return Candidate(
+        source="naver_shopping", mall_name="", title="",
+        price=None, shipping_fee=None, total_price=None,
+        link="", matched_score=0.0, note=note,
+    )
 
 
 class NaverScraper(BaseScraper):
     def __init__(self, config: AppConfig):
         self.config = config
-        self._playwright = None
-        self._browser: Browser | None = None
-        self._context: BrowserContext | None = None
+        self._session = requests.Session()
+        self._session.headers.update(NAVER_HEADERS)
 
-    async def _ensure_browser(self):
-        if self._browser is None:
-            self._playwright = await async_playwright().start()
-            self._browser = await self._playwright.chromium.launch(
-                headless=self.config.headless,
-                args=["--no-sandbox", "--disable-blink-features=AutomationControlled"],
-            )
-            self._context = await self._browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
-                ),
-                viewport={"width": 1280, "height": 900},
-            )
-
-    async def search(self, name: str) -> list[Candidate]:
-        sel = SELECTORS["naver"]
-        await self._ensure_browser()
-        page: Page = await self._context.new_page()
-        candidates: list[Candidate] = []
-
+    def search(self, name: str) -> list[Candidate]:
+        url = _SEARCH_URL.format(
+            query=quote(name),
+            size=min(self.config.max_candidates, 40),
+        )
         try:
-            url = f"https://search.shopping.naver.com/search/all?query={quote(name)}"
-            await page.goto(url, timeout=25000, wait_until="networkidle")
-            await asyncio.sleep(self.config.delay_seconds)
+            resp = self._session.get(url, timeout=self.config.requests_timeout)
+        except requests.RequestException as e:
+            logger.error(f"네이버 요청 실패 [{name}]: {e}")
+            return [_error_candidate(f"네이버 확인불가: {type(e).__name__}")]
 
-            # 차단/캡차 감지
-            page_text = await page.inner_text("body")
-            for kw in sel["block_keywords"]:
-                if kw.lower() in page_text.lower():
-                    logger.warning(f"네이버 차단 감지: '{kw}' — {name}")
-                    return [Candidate(
-                        source="naver_shopping", mall_name="",
-                        title="", price=None, shipping_fee=None, total_price=None,
-                        link="", matched_score=0.0, note="네이버 확인불가"
-                    )]
+        if resp.status_code != 200:
+            logger.warning(f"네이버 HTTP {resp.status_code} [{name}]")
+            return [_error_candidate(f"네이버 확인불가 (HTTP {resp.status_code})")]
 
-            # 아이템 셀렉터는 부분 클래스명으로 매칭
-            items = await page.query_selector_all("[class*='basicList_item']")
-            if not items:
-                items = await page.query_selector_all("div.product_item")
+        products = _extract_products(resp.text)
+        if not products:
+            logger.warning(f"네이버 상품 파싱 실패 [{name}] — 구조 변경 가능성")
+            return [_error_candidate("네이버 확인불가 (파싱 실패)")]
 
-            for item in items[: self.config.max_candidates]:
-                try:
-                    name_el = await item.query_selector("[class*='basicList_title']")
-                    price_el = await item.query_selector("[class*='price_num']")
-                    ship_el = await item.query_selector("[class*='basicList_ship']")
-                    mall_el = await item.query_selector("[class*='basicList_mall_name'], [class*='mall_name']")
+        candidates: list[Candidate] = []
+        for p in products[: self.config.max_candidates]:
+            link = p.get("link") or ""
+            title = _strip_html(p.get("title") or "")
+            mall_name = p.get("mallName") or ""
+            price = _parse_price(p.get("lprice"))
+            source = "naver_smartstore" if _is_smartstore(link) else "naver_shopping"
 
-                    title = (await name_el.inner_text()).strip() if name_el else ""
-                    price_text = (await price_el.inner_text()).strip() if price_el else ""
-                    ship_text = (await ship_el.inner_text()).strip() if ship_el else ""
-                    mall_name = (await mall_el.inner_text()).strip() if mall_el else ""
-
-                    href = ""
-                    if name_el:
-                        href = await name_el.get_attribute("href") or ""
-                    if not href and name_el:
-                        link_el = await name_el.query_selector("a")
-                        if link_el:
-                            href = await link_el.get_attribute("href") or ""
-
-                    price = _parse_price(price_text)
-                    shipping = _parse_shipping(ship_text)
-                    total = (price + shipping) if (price is not None and shipping is not None) else None
-                    note = ""
-                    if shipping is None and price is not None:
-                        note = "배송비 확인불가"
-
-                    source = "naver_smartstore" if _is_smartstore(href) else "naver_shopping"
-
-                    candidates.append(Candidate(
-                        source=source, mall_name=mall_name,
-                        title=title, price=price, shipping_fee=shipping,
-                        total_price=total, link=href,
-                        matched_score=0.0, note=note,
-                    ))
-                except Exception as e:
-                    logger.debug(f"네이버 아이템 파싱 오류: {e}")
-                    continue
-
-        except Exception as e:
-            logger.error(f"네이버 검색 오류 [{name}]: {e}")
             candidates.append(Candidate(
-                source="naver_shopping", mall_name="",
-                title="", price=None, shipping_fee=None, total_price=None,
-                link="", matched_score=0.0,
-                note=f"네이버 확인불가: {type(e).__name__}"
+                source=source,
+                mall_name=mall_name,
+                title=title,
+                price=price,
+                shipping_fee=None,
+                total_price=None,
+                link=link,
+                matched_score=0.0,
+                note="배송비 확인불가",
             ))
-        finally:
-            await page.close()
 
         return candidates
 
-    async def close(self):
-        if self._context:
-            await self._context.close()
-        if self._browser:
-            await self._browser.close()
-        if self._playwright:
-            await self._playwright.stop()
-        self._browser = None
-        self._context = None
-        self._playwright = None
+    def close(self):
+        self._session.close()
