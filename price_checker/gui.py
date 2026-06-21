@@ -5,8 +5,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QLineEdit, QCheckBox, QSpinBox,
-    QProgressBar, QTextEdit, QFileDialog,
-    QGroupBox, QScrollArea, QFrame, QSizePolicy,
+    QDoubleSpinBox, QProgressBar, QTextEdit, QFileDialog,
+    QGroupBox, QScrollArea, QFrame,
 )
 
 from config import AppConfig
@@ -416,35 +416,73 @@ class MainWindow(QMainWindow):
 
     def _make_options_card(self) -> QGroupBox:
         box = QGroupBox("조회 옵션")
-        layout = QHBoxLayout(box)
-        layout.setSpacing(24)
+        layout = QVBoxLayout(box)
+        layout.setSpacing(10)
 
-        col1 = QVBoxLayout()
-        self.naverCheck = QCheckBox("네이버 가격비교 최저가 조회")
+        # ── 기본 조회 옵션 ─────────────────────────────────────────────────
+        row1 = QHBoxLayout()
+        self.naverCheck = QCheckBox("네이버 가격비교 웹조회 사용")
         self.naverCheck.setChecked(True)
-        self.coupangCheck = QCheckBox("쿠팡 검색 링크 생성 (가격 직접 조회 안 함)")
+        self.coupangCheck = QCheckBox("쿠팡 검색 링크 생성")
         self.coupangCheck.setChecked(True)
-        col1.addWidget(self.naverCheck)
-        col1.addWidget(self.coupangCheck)
-        layout.addLayout(col1)
+        self.smarststoreCheck = QCheckBox("스마트스토어 후보 확인")
+        self.smarststoreCheck.setChecked(True)
+        row1.addWidget(self.naverCheck)
+        row1.addWidget(self.coupangCheck)
+        row1.addWidget(self.smarststoreCheck)
+        row1.addStretch()
+        layout.addLayout(row1)
 
-        col2 = QVBoxLayout()
-        self.showLinksCheck = QCheckBox("결과 엑셀에 링크 열 포함 (숨김 열)")
-        self.showLinksCheck.setChecked(False)
-        col2_lbl = QLabel("네이버 수집 상품 수 (최대 100):")
+        # ── 고급 옵션 ──────────────────────────────────────────────────────
+        adv_box = QGroupBox("고급 옵션")
+        adv_box.setStyleSheet(
+            "QGroupBox { border: 1px dashed #D1D5DB; border-radius: 3px; "
+            "margin-top: 6px; font-size: 10px; color: #6B7280; padding: 4px; } "
+            "QGroupBox::title { color: #6B7280; }"
+        )
+        adv_layout = QHBoxLayout(adv_box)
+        adv_layout.setSpacing(16)
+
+        # headless 토글
+        self.headlessCheck = QCheckBox("headless 모드 (브라우저 숨기기)")
+        self.headlessCheck.setChecked(False)
+        adv_layout.addWidget(self.headlessCheck)
+
+        # 딜레이
+        adv_layout.addWidget(QLabel("상품 간 대기 (초):"))
+        self.delayMinSpin = QDoubleSpinBox()
+        self.delayMinSpin.setRange(0.0, 60.0)
+        self.delayMinSpin.setValue(5.0)
+        self.delayMinSpin.setSingleStep(1.0)
+        self.delayMinSpin.setFixedWidth(64)
+        adv_layout.addWidget(QLabel("최소"))
+        adv_layout.addWidget(self.delayMinSpin)
+
+        self.delayMaxSpin = QDoubleSpinBox()
+        self.delayMaxSpin.setRange(0.0, 60.0)
+        self.delayMaxSpin.setValue(10.0)
+        self.delayMaxSpin.setSingleStep(1.0)
+        self.delayMaxSpin.setFixedWidth(64)
+        adv_layout.addWidget(QLabel("최대"))
+        adv_layout.addWidget(self.delayMaxSpin)
+
+        # 수집 수
+        adv_layout.addWidget(QLabel("수집 수 (최대):"))
         self.maxCandSpin = QSpinBox()
-        self.maxCandSpin.setRange(10, 100)
+        self.maxCandSpin.setRange(5, 100)
         self.maxCandSpin.setValue(40)
-        col2.addWidget(self.showLinksCheck)
-        row_spin = QHBoxLayout()
-        row_spin.addWidget(col2_lbl)
-        row_spin.addWidget(self.maxCandSpin)
-        row_spin.addStretch()
-        col2.addLayout(row_spin)
-        layout.addLayout(col2)
+        self.maxCandSpin.setFixedWidth(56)
+        adv_layout.addWidget(self.maxCandSpin)
 
-        layout.addStretch()
+        # 링크 열 포함
+        self.showLinksCheck = QCheckBox("링크 열 포함 (숨김)")
+        self.showLinksCheck.setChecked(False)
+        adv_layout.addWidget(self.showLinksCheck)
 
+        adv_layout.addStretch()
+        layout.addWidget(adv_box)
+
+        # 이벤트 연결
         self.naverCheck.stateChanged.connect(self._update_ui_state)
         self.coupangCheck.stateChanged.connect(self._update_ui_state)
         return box
@@ -533,7 +571,7 @@ class MainWindow(QMainWindow):
         elif not any_search:
             status = "조회 옵션을 하나 이상 선택해주세요."
         elif self.naverCheck.isChecked() and not naver_api_ok:
-            status = "네이버 API 키가 없습니다. 네이버 가격조회는 건너뜁니다."
+            status = "네이버 웹조회 모드로 실행됩니다. (API 키 없음)"
         else:
             status = "조회를 시작할 수 있습니다."
 
@@ -563,10 +601,18 @@ class MainWindow(QMainWindow):
         input_path = self.inputPathEdit.text().strip()
         output_dir = self.outputDirEdit.text().strip() or os.path.dirname(input_path)
 
+        delay_min = self.delayMinSpin.value()
+        delay_max = max(self.delayMaxSpin.value(), delay_min)
+
         config = AppConfig(
-            max_candidates=self.maxCandSpin.value(),
-            use_coupang=self.coupangCheck.isChecked(),
             use_naver=self.naverCheck.isChecked(),
+            use_coupang=self.coupangCheck.isChecked(),
+            use_smartstore=self.smarststoreCheck.isChecked(),
+            use_playwright=True,   # 웹조회는 항상 Playwright
+            playwright_headless=self.headlessCheck.isChecked(),
+            delay_min=delay_min,
+            delay_max=delay_max,
+            max_candidates=self.maxCandSpin.value(),
             naver_client_id=self.naverClientId.text().strip(),
             naver_client_secret=self.naverClientSecret.text().strip(),
             show_links=self.showLinksCheck.isChecked(),

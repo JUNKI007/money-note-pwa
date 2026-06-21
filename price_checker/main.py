@@ -1,6 +1,8 @@
 import logging
 import os
+import random
 import sys
+import time
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -17,30 +19,33 @@ from scrapers.naver import NaverScraper
 
 logger = logging.getLogger(__name__)
 
+# 대량 조회 경고 임계값
+BULK_WARN_THRESHOLD = 20
+
 
 def build_result(
     product: ProductInput,
     coupang_candidates: list[Candidate],
     naver_candidates: list[Candidate],
+    use_smartstore: bool = True,
 ) -> PriceResult:
     """
     규칙:
-    - 가격 컬럼에는 숫자만. URL 절대 불가.
-    - 배송비/합계는 항상 None (미수집).
-    - note 구분: "; "
-    - 쿠팡: 링크만 저장, 가격 컬럼 빈칸, 비고에 "쿠팡 수동확인필요"
-    - 스마트스토어: 네이버 결과 중 smartstore URL 후보, 없으면 "스스 후보 없음"
-    - 네이버: API 결과 최저가, 오류 시 "네이버 확인불가 ..."
+    - 가격 컬럼에는 int 또는 None만. URL 절대 불가.
+    - note 구분자: "; "
+    - 쿠팡: 링크만 저장, 가격 컬럼 빈칸
+    - 스마트스토어: 네이버 결과 중 smartstore URL 필터
+    - 네이버 최저가: 배송비 포함 합계 우선, 없으면 가격만
     """
     result = PriceResult(code=product.code, name=product.name)
     notes: list[str] = []
 
-    # ── 쿠팡: 검색 링크만 저장, 가격 없음 ──────────────────────────────────
+    # ── 쿠팡: 검색 링크만 ──────────────────────────────────────────────────
     if coupang_candidates:
         result.coupang_link = coupang_candidates[0].link
     notes.append("쿠팡 수동확인필요")
 
-    # ── 네이버: 오류/미설정 판별 ───────────────────────────────────────────
+    # ── 네이버: 오류/미설정 감지 ──────────────────────────────────────────
     naver_error = next(
         (c for c in naver_candidates if not c.title and c.note),
         None,
@@ -58,23 +63,38 @@ def build_result(
         and score_candidate(product.name, c) >= SCORE_THRESHOLD
     ]
 
-    # ── 스마트스토어: matched 중 smartstore URL ──────────────────────────
-    ss_candidates = [c for c in matched if c.source == "naver_smartstore"]
-    ss_best = pick_best(product.name, ss_candidates) if ss_candidates else None
-    if ss_best:
-        result.smartstore_price = ss_best.price   # 숫자만 저장
-        result.smartstore_link = ss_best.link
-        notes.append("스스 배송비 확인불가")
-    else:
-        notes.append("스스 후보 없음")
+    # ── 스마트스토어 ──────────────────────────────────────────────────────
+    if use_smartstore:
+        ss_candidates = [c for c in matched if c.source == "naver_smartstore"]
+        ss_best = pick_best(product.name, ss_candidates) if ss_candidates else None
+        if ss_best:
+            result.smartstore_price = ss_best.price
+            result.smartstore_shipping = ss_best.shipping_fee
+            result.smartstore_total = ss_best.total_price
+            result.smartstore_link = ss_best.link
+            if ss_best.shipping_fee is None:
+                notes.append("스스 배송비 확인불가")
+        else:
+            notes.append("스스 후보 없음")
 
-    # ── 네이버 최저가: matched 중 price 기준 최솟값 ─────────────────────
+    # ── 네이버 최저가 ─────────────────────────────────────────────────────
     if matched:
-        lowest = min(matched, key=lambda c: c.price)  # type: ignore[return-value]
-        result.naver_lowest_mall = lowest.mall_name
-        result.naver_lowest_price = lowest.price      # 숫자만 저장
-        result.naver_lowest_link = lowest.link
-        notes.append("배송비 확인불가")
+        # 배송비 포함 합계가 있는 것을 우선 비교
+        with_total = [c for c in matched if c.total_price is not None]
+        if with_total:
+            lowest = min(with_total, key=lambda c: c.total_price)  # type: ignore[return-value]
+            result.naver_lowest_mall = lowest.mall_name
+            result.naver_lowest_price = lowest.price
+            result.naver_lowest_shipping = lowest.shipping_fee
+            result.naver_lowest_total = lowest.total_price
+            result.naver_lowest_link = lowest.link
+        else:
+            # 가격만 있는 경우
+            lowest = min(matched, key=lambda c: c.price)  # type: ignore[return-value]
+            result.naver_lowest_mall = lowest.mall_name
+            result.naver_lowest_price = lowest.price
+            result.naver_lowest_link = lowest.link
+            notes.append("배송비 확인불가")
     else:
         notes.append("네이버 일치 상품 없음")
 
@@ -112,18 +132,22 @@ class SearchWorker(QThread):
             self.finished.emit("")
             return
 
-        self.log.emit(f"총 {len(products)}개 상품 로드 완료", "info")
         total = len(products)
+        self.log.emit(f"총 {total}개 상품 로드 완료", "info")
+
+        # ── 대량 조회 경고 ──────────────────────────────────────────────────
+        if self.config.use_naver and self.config.use_playwright and total > BULK_WARN_THRESHOLD:
+            self.log.emit(
+                f"[주의] 상품이 {total}개입니다. 웹 브라우저 직접조회는 20개 이하를 권장합니다. "
+                f"대량 조회 시 차단될 수 있습니다.",
+                "warn",
+            )
+
         results: list[PriceResult] = []
 
+        # ── 스크래퍼 초기화 ────────────────────────────────────────────────
         coupang = CoupangScraper(self.config) if self.config.use_coupang else None
-        naver = NaverScraper(self.config) if self.config.use_naver else None
-
-        # API 미설정 경고
-        if self.config.use_naver and not self.config.naver_api_configured():
-            self.log.emit(
-                "네이버 API 키가 설정되지 않았습니다. 네이버 가격조회가 비활성화됩니다.", "warn"
-            )
+        naver = self._create_naver_scraper()
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_path = os.path.join(self.output_dir, f"가격조회결과_{timestamp}.xlsx")
@@ -145,7 +169,7 @@ class SearchWorker(QThread):
                     try:
                         coupang_candidates = coupang.search(product.name)
                     except Exception as e:
-                        self.log.emit(f"쿠팡 링크 오류 [{product.name}]: {e}", "error")
+                        self.log.emit(f"쿠팡 링크 오류: {e}", "error")
 
                 if naver:
                     try:
@@ -159,12 +183,18 @@ class SearchWorker(QThread):
                             note=f"네이버 확인불가; {type(e).__name__}",
                         )]
 
-                result = build_result(product, coupang_candidates, naver_candidates)
+                result = build_result(
+                    product,
+                    coupang_candidates,
+                    naver_candidates,
+                    use_smartstore=self.config.use_smartstore,
+                )
                 results.append(result)
 
                 if result.note:
                     self.log.emit(f"  비고: {result.note}", "warn")
 
+                # 임시 저장
                 if (idx + 1) % self.config.autosave_interval == 0:
                     try:
                         save_results(results, temp_path, show_links=self.config.show_links)
@@ -172,10 +202,18 @@ class SearchWorker(QThread):
                     except Exception as e:
                         self.log.emit(f"임시 저장 실패: {e}", "warn")
 
+                # ── 상품 간 딜레이 (마지막 상품 제외) ───────────────────────
+                if (idx + 1) < total and not self._stop_flag:
+                    if self.config.use_naver and self.config.use_playwright:
+                        delay = random.uniform(self.config.delay_min, self.config.delay_max)
+                        self.log.emit(f"  다음 상품까지 {delay:.1f}초 대기", "info")
+                        time.sleep(delay)
+
         finally:
             if naver:
                 naver.close()
 
+        # ── 최종 저장 ──────────────────────────────────────────────────────
         if results:
             try:
                 save_results(results, output_path, show_links=self.config.show_links)
@@ -192,6 +230,27 @@ class SearchWorker(QThread):
                     self.finished.emit("")
         else:
             self.finished.emit("")
+
+    def _create_naver_scraper(self):
+        """설정에 따라 적절한 네이버 스크래퍼를 반환한다."""
+        if not self.config.use_naver:
+            return None
+
+        if self.config.use_playwright:
+            from scrapers.naver_playwright import NaverPlaywrightScraper
+            self.log.emit("네이버 웹 브라우저 직접조회 모드로 실행합니다.", "info")
+            scraper = NaverPlaywrightScraper(self.config)
+            scraper.start()
+            return scraper
+        elif self.config.naver_api_configured():
+            self.log.emit("네이버 오픈 API 모드로 실행합니다.", "info")
+            return NaverScraper(self.config)
+        else:
+            self.log.emit(
+                "네이버 API 키 미설정 + 웹조회 비활성화 → 네이버 조회를 건너뜁니다.",
+                "warn",
+            )
+            return None
 
 
 def main():
