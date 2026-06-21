@@ -11,8 +11,8 @@ from PySide6.QtWidgets import (
     QGroupBox, QScrollArea, QFrame, QSizePolicy,
 )
 
-from price_checker.config import AppConfig
-from price_checker.main import SearchWorker
+from config import AppConfig
+from main import SearchWorker
 
 # ── QSS 스타일시트 ─────────────────────────────────────────────────────────────
 QSS = """
@@ -257,6 +257,7 @@ class MainWindow(QMainWindow):
         self._worker: SearchWorker | None = None
         self._result_path: str = ""
         self._config = AppConfig()
+        self._custom_status: str = ""  # 완료/오류 등 고정 메시지
 
         self._setup_ui()
         self.setStyleSheet(QSS)
@@ -291,6 +292,8 @@ class MainWindow(QMainWindow):
 
         scroll.setWidget(body)
         root.addWidget(scroll)
+
+        self._update_ui_state()
 
     def _make_header(self) -> QWidget:
         header = QWidget()
@@ -344,6 +347,11 @@ class MainWindow(QMainWindow):
         self.headerCheck = QCheckBox("첫 행을 헤더로 사용")
         self.headerCheck.setChecked(True)
         layout.addWidget(self.headerCheck)
+
+        # 경로 변경 시 상태 갱신
+        self.inputPathEdit.textChanged.connect(self._update_ui_state)
+        self.outputDirEdit.textChanged.connect(self._update_ui_state)
+        self.headerCheck.stateChanged.connect(self._update_ui_state)
         return box
 
     def _make_settings_card(self) -> QGroupBox:
@@ -383,6 +391,10 @@ class MainWindow(QMainWindow):
         col3.addWidget(self.naverCheck)
         layout.addLayout(col3)
 
+        # 검색 대상 체크 변경 시 상태 갱신
+        self.coupangCheck.stateChanged.connect(self._update_ui_state)
+        self.naverCheck.stateChanged.connect(self._update_ui_state)
+
         layout.addStretch()
         return box
 
@@ -419,10 +431,10 @@ class MainWindow(QMainWindow):
         self.progressBar.setValue(0)
         layout.addWidget(self.progressBar)
 
-        # 현재 상품
-        self.currentItemLabel = QLabel("대기 중...")
-        self.currentItemLabel.setObjectName("currentItem")
-        layout.addWidget(self.currentItemLabel)
+        # 상태 메시지 (버튼 비활성 사유 포함)
+        self.statusLabel = QLabel("")
+        self.statusLabel.setObjectName("currentItem")
+        layout.addWidget(self.statusLabel)
 
         return box
 
@@ -435,6 +447,49 @@ class MainWindow(QMainWindow):
         self.logBox.setMinimumHeight(180)
         layout.addWidget(self.logBox)
         return box
+
+    # ── 상태 관리 ─────────────────────────────────────────────────────────────
+
+    def _update_ui_state(self, *_):
+        """버튼 활성화 상태 및 상태 메시지를 조건에 따라 갱신."""
+        is_running = self._worker is not None and self._worker.isRunning()
+
+        input_path = self.inputPathEdit.text().strip()
+        output_dir = self.outputDirEdit.text().strip()
+        any_search = self.coupangCheck.isChecked() or self.naverCheck.isChecked()
+
+        # 입력 파일 유효성: 존재하고 xlsx/xls 확장자여야 함
+        input_valid = (
+            bool(input_path)
+            and os.path.isfile(input_path)
+            and input_path.lower().endswith((".xlsx", ".xls"))
+        )
+        # 입력 경로가 있지만 유효하지 않으면 오류 표시
+        input_path_entered = bool(input_path)
+
+        output_valid = bool(output_dir) and os.path.isdir(output_dir)
+
+        can_start = input_valid and output_valid and any_search and not is_running
+
+        # 상태 메시지 결정
+        if is_running:
+            status = "검색 중입니다..."
+        elif not input_path_entered:
+            status = "입력 엑셀 파일을 선택해주세요"
+        elif not input_valid:
+            status = "입력 파일을 확인해주세요 (.xlsx / .xls)"
+        elif not output_valid:
+            status = "저장 위치를 선택해주세요"
+        elif not any_search:
+            status = "쿠팡 또는 네이버 검색 대상을 하나 이상 선택해주세요"
+        else:
+            status = "검색을 시작할 수 있습니다"
+
+        # 완료/오류 메시지가 설정되어 있으면 덮어쓰지 않음
+        if not self._custom_status:
+            self.statusLabel.setText(status)
+        self.btnStart.setEnabled(can_start)
+        self.btnStop.setEnabled(is_running)
 
     # ── 슬롯 ──────────────────────────────────────────────────────────────────
 
@@ -484,38 +539,38 @@ class MainWindow(QMainWindow):
         self._worker.log.connect(self._on_log)
         self._worker.finished.connect(self._on_finished)
 
-        self.btnStart.setEnabled(False)
-        self.btnStop.setEnabled(True)
         self.btnOpen.setEnabled(False)
         self.progressBar.setValue(0)
         self.logBox.clear()
-        self._log("검색을 시작합니다...", "info")
+        self._custom_status = ""  # 시작 시 고정 메시지 초기화
         self._worker.start()
+        self._update_ui_state()
+        self._log("검색을 시작합니다...", "info")
 
     def _stop_search(self):
         if self._worker:
             self._worker.stop()
-        self.btnStop.setEnabled(False)
+        self._update_ui_state()
 
     def _on_progress(self, current: int, total: int):
         self.progressBar.setMaximum(total)
         self.progressBar.setValue(current)
-        self.currentItemLabel.setText(f"처리 중: {current} / {total}")
+        self.statusLabel.setText(f"검색 중입니다... ({current} / {total})")
 
     def _on_log(self, message: str, level: str):
         self._log(message, level)
 
     def _on_finished(self, path: str):
         self._result_path = path
-        self.btnStart.setEnabled(True)
-        self.btnStop.setEnabled(False)
         if path:
             self.btnOpen.setEnabled(True)
             self._log(f"✅ 조회가 완료되었어요 🍬 — {path}", "info")
-            self.currentItemLabel.setText("조회 완료 🍬")
+            self._custom_status = "조회가 완료되었어요 🍬"
         else:
             self._log("⚠️ 완료되었으나 저장 파일이 없습니다.", "warn")
-            self.currentItemLabel.setText("완료 (저장 실패)")
+            self._custom_status = "완료 (저장 실패)"
+        self._update_ui_state()
+        self.statusLabel.setText(self._custom_status)
 
     def _open_result(self):
         if self._result_path and os.path.exists(self._result_path):
