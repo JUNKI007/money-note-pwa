@@ -10,6 +10,7 @@ COLOR_HEADER_BG = "FFB6C9"      # 연분홍 헤더
 COLOR_PRICE_BG = "FFF4D6"       # 연노랑 가격 열
 COLOR_ERROR_BG = "FFE4EC"       # 오류/확인불가 행
 COLOR_HEADER_FONT = "333333"
+COLOR_HYPERLINK = "0563C1"      # 하이퍼링크 색상
 
 COLUMNS = [
     "상품코드", "상품명",
@@ -105,20 +106,20 @@ def save_results(results: list[PriceResult], output_path: str) -> None:
         if result.naver_lowest_link:
             cell_mall = ws.cell(row=row_idx, column=naver_mall_col)
             cell_mall.hyperlink = result.naver_lowest_link
-            cell_mall.font = Font(color="0563C1", underline="single", name="맑은 고딕")
+            cell_mall.font = Font(color=COLOR_HYPERLINK, underline="single", name="맑은 고딕")
 
         # 쿠팡가 셀에 하이퍼링크
         if result.coupang_link:
             cell_cp = ws.cell(row=row_idx, column=coupang_price_col)
             cell_cp.hyperlink = result.coupang_link
-            cell_cp.font = Font(color="0563C1", underline="single", name="맑은 고딕")
+            cell_cp.font = Font(color=COLOR_HYPERLINK, underline="single", name="맑은 고딕")
             cell_cp.number_format = num_fmt
 
         # 스스가 셀에 하이퍼링크
         if result.smartstore_link:
             cell_ss = ws.cell(row=row_idx, column=ss_price_col)
             cell_ss.hyperlink = result.smartstore_link
-            cell_ss.font = Font(color="0563C1", underline="single", name="맑은 고딕")
+            cell_ss.font = Font(color=COLOR_HYPERLINK, underline="single", name="맑은 고딕")
             cell_ss.number_format = num_fmt
 
     # 열 너비 자동 조정 + 숨김 열 처리
@@ -136,5 +137,11 @@ def save_results(results: list[PriceResult], output_path: str) -> None:
 
     # 필터 적용
     ws.auto_filter.ref = f"A1:{get_column_letter(len(COLUMNS))}{ws.max_row}"
+
+    # 폰트 기본 설정 (하이퍼링크 셀 제외한 일반 셀)
+    for row in ws.iter_rows(min_row=2):
+        for cell in row:
+            if cell.font and not cell.font.underline:
+                cell.font = Font(name="맑은 고딕", size=10)
 
     wb.save(output_path)
