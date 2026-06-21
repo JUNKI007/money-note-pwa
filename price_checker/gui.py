@@ -1,273 +1,276 @@
 import os
 import sys
-from datetime import datetime
 
-from PySide6.QtCore import Qt, QThread
-from PySide6.QtGui import QFont, QColor
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QLineEdit, QCheckBox, QSpinBox,
     QProgressBar, QTextEdit, QFileDialog,
-    QGroupBox, QScrollArea, QFrame,
+    QGroupBox, QScrollArea, QFrame, QSizePolicy,
 )
 
 from config import AppConfig
 from main import SearchWorker
 
-# ── QSS 스타일시트 ─────────────────────────────────────────────────────────────
+# ── 업무용 QSS ────────────────────────────────────────────────────────────────
 QSS = """
+/* 전체 배경 */
 QMainWindow, QWidget#centralWidget {
-    background-color: #FFF9FB;
+    background-color: #F3F4F6;
 }
 
 /* 헤더 */
 QWidget#header {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #FFB6C9, stop:1 #FFD6E4);
-    border-radius: 0px;
+    background-color: #1E3A5F;
 }
 QLabel#appTitle {
-    color: #333333;
-    font-size: 22px;
+    color: #FFFFFF;
+    font-size: 18px;
     font-weight: bold;
     font-family: '맑은 고딕';
 }
 QLabel#appSubtitle {
-    color: #555555;
+    color: #93C5FD;
     font-size: 11px;
     font-family: '맑은 고딕';
 }
 
-/* 카드 */
+/* 카드 영역 */
 QGroupBox {
     background-color: #FFFFFF;
-    border: 1.5px solid #F3DDE5;
-    border-radius: 12px;
-    margin-top: 8px;
-    font-size: 12px;
+    border: 1px solid #D1D5DB;
+    border-radius: 4px;
+    margin-top: 10px;
+    font-size: 11px;
     font-weight: bold;
     font-family: '맑은 고딕';
-    color: #444444;
-    padding: 8px;
+    color: #374151;
+    padding: 6px;
 }
 QGroupBox::title {
     subcontrol-origin: margin;
-    left: 12px;
+    left: 10px;
     padding: 0 4px;
-    color: #FF7FA3;
+    color: #2563EB;
 }
 
 /* 일반 라벨 */
 QLabel {
-    color: #333333;
+    color: #111827;
     font-family: '맑은 고딕';
     font-size: 11px;
+}
+QLabel#labelMuted {
+    color: #6B7280;
+    font-size: 10px;
 }
 
 /* 입력창 */
 QLineEdit {
-    border: 1.5px solid #F3DDE5;
-    border-radius: 8px;
-    padding: 5px 10px;
+    border: 1px solid #D1D5DB;
+    border-radius: 3px;
+    padding: 5px 8px;
     background: #FFFFFF;
-    color: #333333;
+    color: #111827;
     font-family: '맑은 고딕';
     font-size: 11px;
 }
 QLineEdit:focus {
-    border-color: #FFB6C9;
+    border-color: #2563EB;
+}
+QLineEdit:read-only {
+    background: #F9FAFB;
+    color: #374151;
+}
+
+/* API 키 입력창 (비밀번호 표시 모드) */
+QLineEdit#apiKeyInput {
+    font-family: 'Consolas', '맑은 고딕';
+    font-size: 11px;
+    border: 1px solid #D1D5DB;
+    border-radius: 3px;
+    padding: 5px 8px;
+    background: #FFFFFF;
+    color: #111827;
 }
 
 /* 숫자 입력 */
-QDoubleSpinBox, QSpinBox {
-    border: 1.5px solid #F3DDE5;
-    border-radius: 8px;
-    padding: 4px 8px;
+QSpinBox {
+    border: 1px solid #D1D5DB;
+    border-radius: 3px;
+    padding: 4px 6px;
     background: #FFFFFF;
-    color: #333333;
+    color: #111827;
     font-family: '맑은 고딕';
+    font-size: 11px;
 }
-QDoubleSpinBox:focus, QSpinBox:focus {
-    border-color: #FFB6C9;
+QSpinBox:focus {
+    border-color: #2563EB;
 }
 
 /* 체크박스 */
 QCheckBox {
-    color: #333333;
+    color: #111827;
     font-family: '맑은 고딕';
     font-size: 11px;
     spacing: 6px;
 }
 QCheckBox::indicator {
-    width: 16px;
-    height: 16px;
-    border-radius: 4px;
-    border: 1.5px solid #F3DDE5;
+    width: 15px;
+    height: 15px;
+    border-radius: 2px;
+    border: 1px solid #D1D5DB;
     background: #FFFFFF;
 }
 QCheckBox::indicator:checked {
-    background: #FFB6C9;
-    border-color: #FF7FA3;
+    background-color: #2563EB;
+    border-color: #1D4ED8;
 }
 
-/* 파일 선택 (분홍) 버튼 */
-QPushButton#btnPink {
-    background-color: #FF9AB8;
-    color: #333333;
-    border: 1.5px solid #FF80A8;
-    border-radius: 10px;
-    padding: 7px 16px;
+/* 기본 버튼 */
+QPushButton {
+    background-color: #E5E7EB;
+    color: #374151;
+    border: 1px solid #D1D5DB;
+    border-radius: 3px;
+    padding: 6px 14px;
     font-family: '맑은 고딕';
     font-size: 11px;
-    font-weight: bold;
-    min-height: 32px;
 }
-QPushButton#btnPink:hover {
-    background-color: #FFB0CA;
-    border-color: #FF9AB8;
+QPushButton:hover {
+    background-color: #D1D5DB;
+    border-color: #9CA3AF;
 }
-QPushButton#btnPink:pressed {
-    background-color: #FF7FA3;
+QPushButton:pressed {
+    background-color: #9CA3AF;
 }
 
-/* 저장 위치 (노랑) 버튼 */
-QPushButton#btnYellow {
-    background-color: #FFDA70;
-    color: #333333;
-    border: 1.5px solid #FFC940;
-    border-radius: 10px;
-    padding: 7px 16px;
+/* 파일 선택 버튼 */
+QPushButton#btnFile {
+    background-color: #E5E7EB;
+    color: #374151;
+    border: 1px solid #D1D5DB;
+    border-radius: 3px;
+    padding: 5px 12px;
     font-family: '맑은 고딕';
     font-size: 11px;
-    font-weight: bold;
-    min-height: 32px;
+    min-width: 70px;
 }
-QPushButton#btnYellow:hover {
-    background-color: #FFE79A;
-    border-color: #FFDA70;
-}
-QPushButton#btnYellow:pressed {
-    background-color: #FFC940;
+QPushButton#btnFile:hover {
+    background-color: #D1D5DB;
 }
 
-/* ── 검색 시작 버튼 ── */
+/* 검색 시작 버튼 */
 QPushButton#btnStart {
-    background-color: #FF7FA3;
+    background-color: #2563EB;
     color: #FFFFFF;
-    border: 1.5px solid #FF6B95;
-    border-radius: 12px;
-    padding: 10px 28px;
+    border: 1px solid #1D4ED8;
+    border-radius: 3px;
+    padding: 8px 24px;
     font-family: '맑은 고딕';
-    font-size: 13px;
+    font-size: 12px;
     font-weight: bold;
     min-width: 110px;
-    min-height: 38px;
+    min-height: 36px;
 }
 QPushButton#btnStart:hover {
-    background-color: #FF96B5;
-    border-color: #FF7FA3;
-    color: #FFFFFF;
+    background-color: #1D4ED8;
+    border-color: #1E40AF;
 }
 QPushButton#btnStart:pressed {
-    background-color: #FF5C8A;
-    color: #FFFFFF;
+    background-color: #1E40AF;
 }
 QPushButton#btnStart:disabled {
-    background-color: #F2E7EC;
-    color: #A0A0A0;
-    border: 1.5px solid #E6D3DB;
+    background-color: #E5E7EB;
+    color: #9CA3AF;
+    border-color: #D1D5DB;
 }
 
-/* ── 중지 버튼 ── */
+/* 중지 버튼 */
 QPushButton#btnStop {
-    background-color: #FF8C42;
-    color: #FFFFFF;
-    border: 1.5px solid #E87A32;
-    border-radius: 12px;
-    padding: 10px 20px;
-    font-family: '맑은 고딕';
-    font-size: 12px;
-    font-weight: bold;
-    min-width: 80px;
-    min-height: 38px;
-}
-QPushButton#btnStop:hover {
-    background-color: #FFA060;
-    border-color: #FF8C42;
-    color: #FFFFFF;
-}
-QPushButton#btnStop:pressed {
-    background-color: #E06C28;
-    color: #FFFFFF;
-}
-QPushButton#btnStop:disabled {
-    background-color: #F2EFED;
-    color: #B0A8A4;
-    border: 1.5px solid #E2DEDD;
-}
-
-/* ── 결과 엑셀 열기 버튼 ── */
-QPushButton#btnOpen {
-    background-color: #FFDA70;
-    color: #333333;
-    border: 1.5px solid #FFC940;
-    border-radius: 10px;
+    background-color: #FFFFFF;
+    color: #DC2626;
+    border: 1px solid #DC2626;
+    border-radius: 3px;
     padding: 8px 20px;
     font-family: '맑은 고딕';
-    font-size: 12px;
+    font-size: 11px;
     font-weight: bold;
-    min-width: 140px;
-    min-height: 38px;
+    min-width: 80px;
+    min-height: 36px;
+}
+QPushButton#btnStop:hover {
+    background-color: #FEE2E2;
+}
+QPushButton#btnStop:disabled {
+    background-color: #FFFFFF;
+    color: #D1D5DB;
+    border-color: #E5E7EB;
+}
+
+/* 결과 열기 버튼 */
+QPushButton#btnOpen {
+    background-color: #FFFFFF;
+    color: #2563EB;
+    border: 1px solid #2563EB;
+    border-radius: 3px;
+    padding: 8px 20px;
+    font-family: '맑은 고딕';
+    font-size: 11px;
+    font-weight: bold;
+    min-width: 130px;
+    min-height: 36px;
 }
 QPushButton#btnOpen:hover {
-    background-color: #FFE79A;
-    border-color: #FFDA70;
-    color: #333333;
-}
-QPushButton#btnOpen:pressed {
-    background-color: #FFC940;
-    color: #333333;
+    background-color: #EFF6FF;
 }
 QPushButton#btnOpen:disabled {
-    background-color: #F2EFED;
-    color: #B0A8A4;
-    border: 1.5px solid #E2DEDD;
+    background-color: #FFFFFF;
+    color: #D1D5DB;
+    border-color: #E5E7EB;
 }
 
 /* 진행률 바 */
 QProgressBar {
-    border: none;
-    border-radius: 8px;
-    background: #F3DDE5;
-    height: 14px;
+    border: 1px solid #D1D5DB;
+    border-radius: 3px;
+    background: #F9FAFB;
+    height: 16px;
     text-align: center;
-    color: #333333;
+    color: #374151;
     font-family: '맑은 고딕';
     font-size: 10px;
 }
 QProgressBar::chunk {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #FFB6C9, stop:1 #FF7FA3);
-    border-radius: 8px;
+    background-color: #2563EB;
+    border-radius: 2px;
 }
 
 /* 로그창 */
 QTextEdit#logBox {
     background: #FFFFFF;
-    border: 1.5px solid #F3DDE5;
-    border-radius: 10px;
-    color: #333333;
-    font-family: '맑은 고딕';
+    border: 1px solid #D1D5DB;
+    border-radius: 3px;
+    color: #111827;
+    font-family: 'Consolas', '맑은 고딕';
     font-size: 10px;
-    padding: 6px;
+    padding: 4px;
 }
 
-/* 현재 상품 라벨 */
-QLabel#currentItem {
-    color: #FF7FA3;
+/* 상태 라벨 */
+QLabel#statusLabel {
+    color: #374151;
     font-family: '맑은 고딕';
     font-size: 11px;
-    font-weight: bold;
+}
+QLabel#statusLabel[severity="warn"] {
+    color: #D97706;
+}
+QLabel#statusLabel[severity="error"] {
+    color: #DC2626;
+}
+QLabel#statusLabel[severity="ok"] {
+    color: #059669;
 }
 """
 
@@ -275,14 +278,13 @@ QLabel#currentItem {
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Jelly Price Checker")
-        self.setMinimumSize(900, 650)
-        self.resize(950, 700)
+        self.setWindowTitle("Price Checker")
+        self.setMinimumSize(860, 640)
+        self.resize(920, 700)
 
         self._worker: SearchWorker | None = None
         self._result_path: str = ""
-        self._config = AppConfig()
-        self._custom_status: str = ""  # 완료/오류 등 고정 메시지
+        self._custom_status: str = ""
 
         self._setup_ui()
         self.setStyleSheet(QSS)
@@ -295,22 +297,21 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # 헤더
         root.addWidget(self._make_header())
 
-        # 스크롤 영역 (본문)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setStyleSheet("QScrollArea { background: #FFF9FB; border: none; }")
+        scroll.setStyleSheet("QScrollArea { background: #F3F4F6; border: none; }")
         body = QWidget()
-        body.setStyleSheet("background: #FFF9FB;")
+        body.setStyleSheet("background: #F3F4F6;")
         body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(20, 16, 20, 16)
-        body_layout.setSpacing(12)
+        body_layout.setContentsMargins(16, 14, 16, 14)
+        body_layout.setSpacing(10)
 
         body_layout.addWidget(self._make_file_card())
-        body_layout.addWidget(self._make_settings_card())
+        body_layout.addWidget(self._make_api_card())
+        body_layout.addWidget(self._make_options_card())
         body_layout.addWidget(self._make_run_card())
         body_layout.addWidget(self._make_log_card())
         body_layout.addStretch()
@@ -320,17 +321,19 @@ class MainWindow(QMainWindow):
 
         self._update_ui_state()
 
+    # ── 카드 구성 ──────────────────────────────────────────────────────────────
+
     def _make_header(self) -> QWidget:
         header = QWidget()
         header.setObjectName("header")
-        header.setFixedHeight(80)
+        header.setFixedHeight(64)
         layout = QVBoxLayout(header)
-        layout.setContentsMargins(24, 12, 24, 12)
+        layout.setContentsMargins(20, 10, 20, 10)
         layout.setSpacing(2)
 
-        title = QLabel("🍬 Jelly Price Checker")
+        title = QLabel("Price Checker")
         title.setObjectName("appTitle")
-        subtitle = QLabel("네이버 가격비교 최저가 조회 + 쿠팡 검색 링크 생성 보조툴")
+        subtitle = QLabel("상품명 기준 네이버 가격비교 최저가 조회 보조툴")
         subtitle.setObjectName("appSubtitle")
 
         layout.addWidget(title)
@@ -338,17 +341,17 @@ class MainWindow(QMainWindow):
         return header
 
     def _make_file_card(self) -> QGroupBox:
-        box = QGroupBox("📂 파일 선택")
+        box = QGroupBox("파일 선택")
         layout = QVBoxLayout(box)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
 
         # 입력 엑셀
         row1 = QHBoxLayout()
         self.inputPathEdit = QLineEdit()
-        self.inputPathEdit.setPlaceholderText("입력 엑셀 파일을 선택하세요 (.xlsx / .xls)")
+        self.inputPathEdit.setPlaceholderText("입력 엑셀 파일 (.xlsx / .xls)")
         self.inputPathEdit.setReadOnly(True)
-        btn_input = QPushButton("엑셀 선택")
-        btn_input.setObjectName("btnPink")
+        btn_input = QPushButton("파일 선택")
+        btn_input.setObjectName("btnFile")
         btn_input.clicked.connect(self._select_input)
         row1.addWidget(QLabel("입력 파일:"))
         row1.addWidget(self.inputPathEdit, 1)
@@ -358,67 +361,102 @@ class MainWindow(QMainWindow):
         # 저장 위치
         row2 = QHBoxLayout()
         self.outputDirEdit = QLineEdit()
-        self.outputDirEdit.setPlaceholderText("결과 파일 저장 위치 (기본: 입력 파일과 동일)")
+        self.outputDirEdit.setPlaceholderText("저장 위치 (기본: 입력 파일과 동일 폴더)")
         self.outputDirEdit.setReadOnly(True)
         btn_output = QPushButton("폴더 선택")
-        btn_output.setObjectName("btnYellow")
+        btn_output.setObjectName("btnFile")
         btn_output.clicked.connect(self._select_output_dir)
         row2.addWidget(QLabel("저장 위치:"))
         row2.addWidget(self.outputDirEdit, 1)
         row2.addWidget(btn_output)
         layout.addLayout(row2)
 
-        # 옵션
         self.headerCheck = QCheckBox("첫 행을 헤더로 사용")
         self.headerCheck.setChecked(True)
         layout.addWidget(self.headerCheck)
 
-        # 경로 변경 시 상태 갱신
         self.inputPathEdit.textChanged.connect(self._update_ui_state)
         self.outputDirEdit.textChanged.connect(self._update_ui_state)
         self.headerCheck.stateChanged.connect(self._update_ui_state)
         return box
 
-    def _make_settings_card(self) -> QGroupBox:
-        box = QGroupBox("⚙️ 검색 설정")
+    def _make_api_card(self) -> QGroupBox:
+        box = QGroupBox("네이버 오픈 API 설정  (가격 자동조회에 필요)")
+        layout = QVBoxLayout(box)
+        layout.setSpacing(8)
+
+        hint = QLabel(
+            "네이버 개발자 센터(developers.naver.com)에서 쇼핑 검색 API 앱을 등록하고 "
+            "클라이언트 ID / Secret을 입력하세요. 입력하지 않으면 네이버 가격조회가 비활성화됩니다."
+        )
+        hint.setObjectName("labelMuted")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+
+        row1 = QHBoxLayout()
+        row1.addWidget(QLabel("클라이언트 ID:"))
+        self.naverClientId = QLineEdit()
+        self.naverClientId.setObjectName("apiKeyInput")
+        self.naverClientId.setPlaceholderText("X-Naver-Client-Id")
+        row1.addWidget(self.naverClientId, 1)
+        layout.addLayout(row1)
+
+        row2 = QHBoxLayout()
+        row2.addWidget(QLabel("클라이언트 Secret:"))
+        self.naverClientSecret = QLineEdit()
+        self.naverClientSecret.setObjectName("apiKeyInput")
+        self.naverClientSecret.setPlaceholderText("X-Naver-Client-Secret")
+        self.naverClientSecret.setEchoMode(QLineEdit.EchoMode.Password)
+        row2.addWidget(self.naverClientSecret, 1)
+        layout.addLayout(row2)
+
+        self.naverClientId.textChanged.connect(self._update_ui_state)
+        self.naverClientSecret.textChanged.connect(self._update_ui_state)
+        return box
+
+    def _make_options_card(self) -> QGroupBox:
+        box = QGroupBox("조회 옵션")
         layout = QHBoxLayout(box)
-        layout.setSpacing(20)
+        layout.setSpacing(24)
 
-        # 최대 후보 수 (네이버 검색 결과 수집 개수)
         col1 = QVBoxLayout()
-        col1.addWidget(QLabel("네이버 수집 상품 수 (최대 40)"))
-        self.maxCandSpin = QSpinBox()
-        self.maxCandSpin.setRange(5, 40)
-        self.maxCandSpin.setValue(40)
-        col1.addWidget(self.maxCandSpin)
-        layout.addLayout(col1)
-
-        # 검색 대상 체크박스
-        col2 = QVBoxLayout()
-        self.coupangCheck = QCheckBox("쿠팡 검색 링크 생성")
-        self.coupangCheck.setChecked(True)
-        self.coupangCheck.setToolTip("쿠팡 가격은 직접 조회하지 않고 검색 링크만 생성합니다")
         self.naverCheck = QCheckBox("네이버 가격비교 최저가 조회")
         self.naverCheck.setChecked(True)
-        col2.addWidget(self.coupangCheck)
-        col2.addWidget(self.naverCheck)
+        self.coupangCheck = QCheckBox("쿠팡 검색 링크 생성 (가격 직접 조회 안 함)")
+        self.coupangCheck.setChecked(True)
+        col1.addWidget(self.naverCheck)
+        col1.addWidget(self.coupangCheck)
+        layout.addLayout(col1)
+
+        col2 = QVBoxLayout()
+        self.showLinksCheck = QCheckBox("결과 엑셀에 링크 열 포함 (숨김 열)")
+        self.showLinksCheck.setChecked(False)
+        col2_lbl = QLabel("네이버 수집 상품 수 (최대 100):")
+        self.maxCandSpin = QSpinBox()
+        self.maxCandSpin.setRange(10, 100)
+        self.maxCandSpin.setValue(40)
+        col2.addWidget(self.showLinksCheck)
+        row_spin = QHBoxLayout()
+        row_spin.addWidget(col2_lbl)
+        row_spin.addWidget(self.maxCandSpin)
+        row_spin.addStretch()
+        col2.addLayout(row_spin)
         layout.addLayout(col2)
 
-        # 검색 대상 체크 변경 시 상태 갱신
-        self.coupangCheck.stateChanged.connect(self._update_ui_state)
-        self.naverCheck.stateChanged.connect(self._update_ui_state)
-
         layout.addStretch()
+
+        self.naverCheck.stateChanged.connect(self._update_ui_state)
+        self.coupangCheck.stateChanged.connect(self._update_ui_state)
         return box
 
     def _make_run_card(self) -> QGroupBox:
-        box = QGroupBox("🚀 실행")
+        box = QGroupBox("실행")
         layout = QVBoxLayout(box)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
 
         # 버튼 행
         btn_row = QHBoxLayout()
-        self.btnStart = QPushButton("검색 시작")
+        self.btnStart = QPushButton("조회 시작")
         self.btnStart.setObjectName("btnStart")
         self.btnStart.clicked.connect(self._start_search)
 
@@ -427,14 +465,14 @@ class MainWindow(QMainWindow):
         self.btnStop.setEnabled(False)
         self.btnStop.clicked.connect(self._stop_search)
 
-        self.btnOpen = QPushButton("결과 엑셀 열기 🍬")
+        self.btnOpen = QPushButton("결과 파일 열기")
         self.btnOpen.setObjectName("btnOpen")
         self.btnOpen.setEnabled(False)
         self.btnOpen.clicked.connect(self._open_result)
 
         btn_row.addWidget(self.btnStart)
         btn_row.addWidget(self.btnStop)
-        btn_row.addSpacing(20)
+        btn_row.addSpacing(16)
         btn_row.addWidget(self.btnOpen)
         btn_row.addStretch()
         layout.addLayout(btn_row)
@@ -444,15 +482,15 @@ class MainWindow(QMainWindow):
         self.progressBar.setValue(0)
         layout.addWidget(self.progressBar)
 
-        # 상태 메시지 (버튼 비활성 사유 포함)
+        # 상태 메시지
         self.statusLabel = QLabel("")
-        self.statusLabel.setObjectName("currentItem")
+        self.statusLabel.setObjectName("statusLabel")
         layout.addWidget(self.statusLabel)
 
         return box
 
     def _make_log_card(self) -> QGroupBox:
-        box = QGroupBox("📋 로그")
+        box = QGroupBox("로그")
         layout = QVBoxLayout(box)
         self.logBox = QTextEdit()
         self.logBox.setObjectName("logBox")
@@ -461,46 +499,47 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.logBox)
         return box
 
-    # ── 상태 관리 ─────────────────────────────────────────────────────────────
+    # ── 상태 관리 ──────────────────────────────────────────────────────────────
 
     def _update_ui_state(self, *_):
-        """버튼 활성화 상태 및 상태 메시지를 조건에 따라 갱신."""
         is_running = self._worker is not None and self._worker.isRunning()
 
         input_path = self.inputPathEdit.text().strip()
         output_dir = self.outputDirEdit.text().strip()
         any_search = self.coupangCheck.isChecked() or self.naverCheck.isChecked()
 
-        # 입력 파일 유효성: 존재하고 xlsx/xls 확장자여야 함
         input_valid = (
             bool(input_path)
             and os.path.isfile(input_path)
             and input_path.lower().endswith((".xlsx", ".xls"))
         )
-        # 입력 경로가 있지만 유효하지 않으면 오류 표시
-        input_path_entered = bool(input_path)
-
         output_valid = bool(output_dir) and os.path.isdir(output_dir)
+
+        naver_api_ok = bool(
+            self.naverClientId.text().strip()
+            and self.naverClientSecret.text().strip()
+        )
 
         can_start = input_valid and output_valid and any_search and not is_running
 
-        # 상태 메시지 결정
         if is_running:
-            status = "검색 중입니다..."
-        elif not input_path_entered:
-            status = "입력 엑셀 파일을 선택해주세요"
+            status = "조회 중입니다..."
+        elif not input_path:
+            status = "입력 엑셀 파일을 선택해주세요."
         elif not input_valid:
-            status = "입력 파일을 확인해주세요 (.xlsx / .xls)"
+            status = "입력 파일을 확인해주세요. (.xlsx / .xls만 허용)"
         elif not output_valid:
-            status = "저장 위치를 선택해주세요"
+            status = "저장 위치를 선택해주세요."
         elif not any_search:
-            status = "쿠팡 또는 네이버 검색 대상을 하나 이상 선택해주세요"
+            status = "조회 옵션을 하나 이상 선택해주세요."
+        elif self.naverCheck.isChecked() and not naver_api_ok:
+            status = "네이버 API 키가 없습니다. 네이버 가격조회는 건너뜁니다."
         else:
-            status = "검색을 시작할 수 있습니다"
+            status = "조회를 시작할 수 있습니다."
 
-        # 완료/오류 메시지가 설정되어 있으면 덮어쓰지 않음
         if not self._custom_status:
             self.statusLabel.setText(status)
+
         self.btnStart.setEnabled(can_start)
         self.btnStop.setEnabled(is_running)
 
@@ -521,24 +560,23 @@ class MainWindow(QMainWindow):
             self.outputDirEdit.setText(path)
 
     def _start_search(self):
-        input_path = self.inputPathEdit.text()
-        if not input_path or not os.path.exists(input_path):
-            self._log("입력 엑셀 파일을 먼저 선택해주세요.", "error")
-            return
-        output_dir = self.outputDirEdit.text() or os.path.dirname(input_path)
+        input_path = self.inputPathEdit.text().strip()
+        output_dir = self.outputDirEdit.text().strip() or os.path.dirname(input_path)
 
         config = AppConfig(
             max_candidates=self.maxCandSpin.value(),
             use_coupang=self.coupangCheck.isChecked(),
             use_naver=self.naverCheck.isChecked(),
+            naver_client_id=self.naverClientId.text().strip(),
+            naver_client_secret=self.naverClientSecret.text().strip(),
+            show_links=self.showLinksCheck.isChecked(),
         )
 
-        # 이전 worker가 있으면 정리
         if self._worker is not None:
             if self._worker.isRunning():
                 self._worker.stop()
             self._worker.quit()
-            self._worker.wait(3000)  # 최대 3초 대기
+            self._worker.wait(3000)
 
         self._worker = SearchWorker(
             input_path=input_path,
@@ -553,10 +591,10 @@ class MainWindow(QMainWindow):
         self.btnOpen.setEnabled(False)
         self.progressBar.setValue(0)
         self.logBox.clear()
-        self._custom_status = ""  # 시작 시 고정 메시지 초기화
+        self._custom_status = ""
         self._worker.start()
         self._update_ui_state()
-        self._log("검색을 시작합니다...", "info")
+        self._log("조회를 시작합니다.", "info")
 
     def _stop_search(self):
         if self._worker:
@@ -566,7 +604,7 @@ class MainWindow(QMainWindow):
     def _on_progress(self, current: int, total: int):
         self.progressBar.setMaximum(total)
         self.progressBar.setValue(current)
-        self.statusLabel.setText(f"검색 중입니다... ({current} / {total})")
+        self.statusLabel.setText(f"조회 중... ({current} / {total})")
 
     def _on_log(self, message: str, level: str):
         self._log(message, level)
@@ -575,10 +613,10 @@ class MainWindow(QMainWindow):
         self._result_path = path
         if path:
             self.btnOpen.setEnabled(True)
-            self._log(f"✅ 조회가 완료되었어요 🍬 — {path}", "info")
-            self._custom_status = "조회가 완료되었어요 🍬"
+            self._log(f"조회가 완료되었습니다. 저장 위치: {path}", "info")
+            self._custom_status = "조회가 완료되었습니다."
         else:
-            self._log("⚠️ 완료되었으나 저장 파일이 없습니다.", "warn")
+            self._log("완료되었으나 저장 파일이 없습니다.", "warn")
             self._custom_status = "완료 (저장 실패)"
         self._update_ui_state()
         self.statusLabel.setText(self._custom_status)
@@ -588,12 +626,11 @@ class MainWindow(QMainWindow):
             os.startfile(self._result_path)
 
     def _log(self, message: str, level: str = "info"):
-        colors = {"info": "#333333", "warn": "#E08000", "error": "#CC2244"}
-        color = colors.get(level, "#333333")
+        colors = {"info": "#111827", "warn": "#B45309", "error": "#DC2626"}
+        color = colors.get(level, "#111827")
         self.logBox.append(
-            f'<span style="color:{color}; font-family:맑은 고딕; font-size:10pt;">'
+            f'<span style="color:{color}; font-family:Consolas,맑은 고딕; font-size:10pt;">'
             f'{message}</span>'
         )
-        # 스크롤 맨 아래로
         sb = self.logBox.verticalScrollBar()
         sb.setValue(sb.maximum())

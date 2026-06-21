@@ -1,39 +1,53 @@
 import pandas as pd
 from openpyxl import load_workbook
-from openpyxl.styles import PatternFill, Font, Alignment
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-from price_checker.models import ProductInput, PriceResult
+from models import ProductInput, PriceResult
 
-# 스타일 컬러 상수
-COLOR_HEADER_BG = "FFB6C9"      # 연분홍 헤더
-COLOR_PRICE_BG = "FFF4D6"       # 연노랑 가격 열
-COLOR_ERROR_BG = "FFE4EC"       # 오류/확인불가 행
-COLOR_HEADER_FONT = "333333"
-COLOR_HYPERLINK = "0563C1"      # 하이퍼링크 색상
+# ── 업무용 스타일 색상 ──────────────────────────────────────────────────────────
+COLOR_HEADER_BG = "2563EB"     # 파란색 헤더 배경
+COLOR_HEADER_FG = "FFFFFF"     # 헤더 흰 글자
+COLOR_PRICE_BG = "EFF6FF"      # 연한 파란 가격 열
+COLOR_WARN_BG = "FEF3C7"       # 주의 행 (수동확인 등)
+COLOR_ERROR_BG = "FEE2E2"      # 오류/확인불가 행
+COLOR_LINK = "1D4ED8"          # 하이퍼링크 색상
+COLOR_BORDER = "D1D5DB"        # 셀 테두리
 
-COLUMNS = [
+# ── 기본 표시 컬럼 (가격/텍스트만, URL 없음) ──────────────────────────────────
+BASE_COLUMNS = [
     "상품코드", "상품명",
     "쿠팡가", "쿠팡배송", "쿠팡합계",
     "스스가", "스스배송", "스스합계",
     "네최몰", "네최가", "네배송", "네합계",
     "비고",
-    "쿠팡링크", "스스링크", "네최링크",   # N~P (숨김 열)
 ]
 
-PRICE_COLUMNS = {"쿠팡가", "쿠팡배송", "쿠팡합계", "스스가", "스스배송", "스스합계",
-                 "네최가", "네배송", "네합계"}
+# 링크 전용 숨김 열 (show_links=True일 때만 출력)
+LINK_COLUMNS = ["쿠팡링크", "스스링크", "네최링크"]
+
+PRICE_COLUMNS = {
+    "쿠팡가", "쿠팡배송", "쿠팡합계",
+    "스스가", "스스배송", "스스합계",
+    "네최가", "네배송", "네합계",
+}
+
+
+def _validate_price_value(col_name: str, value) -> None:
+    """가격 컬럼에 URL이 들어가지 않도록 검증한다."""
+    if col_name in PRICE_COLUMNS and isinstance(value, str):
+        if value.startswith("http://") or value.startswith("https://"):
+            raise ValueError(
+                f"가격 컬럼 '{col_name}'에 URL이 포함될 수 없습니다: {value[:60]}"
+            )
 
 
 def read_products(path: str, has_header: bool) -> list[ProductInput]:
-    """엑셀 파일에서 ProductInput 리스트를 읽는다."""
     header_row = 0 if has_header else None
     df = pd.read_excel(path, header=header_row, dtype=str)
     df = df.fillna("")
 
-    # row_index: 헤더가 있으면 데이터는 엑셀 2행부터이므로 +1 오프셋
     row_offset = 1 if has_header else 0
-
     products: list[ProductInput] = []
     for i, row in df.iterrows():
         code = str(row.iloc[0]).strip()
@@ -48,100 +62,109 @@ def read_products(path: str, has_header: bool) -> list[ProductInput]:
     return products
 
 
-def _result_to_row(r: PriceResult) -> list:
-    return [
+def _result_to_row(r: PriceResult, show_links: bool) -> list:
+    base = [
         r.code, r.name,
         r.coupang_price, r.coupang_shipping, r.coupang_total,
         r.smartstore_price, r.smartstore_shipping, r.smartstore_total,
         r.naver_lowest_mall, r.naver_lowest_price, r.naver_lowest_shipping, r.naver_lowest_total,
         r.note,
-        r.coupang_link, r.smartstore_link, r.naver_lowest_link,
     ]
+    if show_links:
+        base += [r.coupang_link, r.smartstore_link, r.naver_lowest_link]
+    return base
 
 
-def save_results(results: list[PriceResult], output_path: str) -> None:
-    """결과를 xlsx로 저장하고 스타일을 적용한다."""
-    rows = [_result_to_row(r) for r in results]
-    df = pd.DataFrame(rows, columns=COLUMNS)
+def save_results(
+    results: list[PriceResult],
+    output_path: str,
+    show_links: bool = False,
+) -> None:
+    columns = BASE_COLUMNS + (LINK_COLUMNS if show_links else [])
+
+    # 가격 컬럼 URL 검증
+    for r in results:
+        for col, val in zip(BASE_COLUMNS, _result_to_row(r, show_links=False)):
+            _validate_price_value(col, val)
+
+    rows = [_result_to_row(r, show_links) for r in results]
+    df = pd.DataFrame(rows, columns=columns)
     df.to_excel(output_path, index=False)
 
     wb = load_workbook(output_path)
     ws = wb.active
 
+    # 스타일 준비
     header_fill = PatternFill("solid", fgColor=COLOR_HEADER_BG)
     price_fill = PatternFill("solid", fgColor=COLOR_PRICE_BG)
+    warn_fill = PatternFill("solid", fgColor=COLOR_WARN_BG)
     error_fill = PatternFill("solid", fgColor=COLOR_ERROR_BG)
-    header_font = Font(bold=True, color=COLOR_HEADER_FONT, name="맑은 고딕")
+    header_font = Font(bold=True, color=COLOR_HEADER_FG, name="맑은 고딕", size=10)
+    normal_font = Font(name="맑은 고딕", size=10)
+    link_font = Font(color=COLOR_LINK, underline="single", name="맑은 고딕", size=10)
+    thin = Side(style="thin", color=COLOR_BORDER)
+    cell_border = Border(left=thin, right=thin, top=thin, bottom=thin)
     num_fmt = "#,##0"
 
-    # 헤더 스타일
+    # ── 헤더 행 ──
     for cell in ws[1]:
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = cell_border
 
-    # 데이터 행 스타일
-    naver_mall_col = COLUMNS.index("네최몰") + 1
-    coupang_price_col = COLUMNS.index("쿠팡가") + 1
-    coupang_link_col = COLUMNS.index("쿠팡링크") + 1
-    ss_price_col = COLUMNS.index("스스가") + 1
-    ss_link_col = COLUMNS.index("스스링크") + 1
-    naver_link_col = COLUMNS.index("네최링크") + 1
+    # ── 데이터 행 ──
+    naver_mall_col = columns.index("네최몰") + 1
 
     for row_idx, result in enumerate(results, start=2):
         note = result.note or ""
-        is_error = "확인불가" in note or "실패" in note or "수동확인" in note
+        is_error = "확인불가" in note or "실패" in note
+        is_warn = "수동확인" in note or "후보 없음" in note or "미설정" in note
 
-        for col_idx in range(1, len(COLUMNS) + 1):
+        for col_idx, col_name in enumerate(columns, start=1):
             cell = ws.cell(row=row_idx, column=col_idx)
-            col_name = COLUMNS[col_idx - 1]
+
+            # 행 배경색
             if is_error:
                 cell.fill = error_fill
+            elif is_warn:
+                cell.fill = warn_fill
             elif col_name in PRICE_COLUMNS:
                 cell.fill = price_fill
-            if col_name in PRICE_COLUMNS and cell.value is not None:
-                cell.number_format = num_fmt
 
-        # 네최몰 셀에 하이퍼링크
-        if result.naver_lowest_link:
+            # 숫자 포맷
+            if col_name in PRICE_COLUMNS and isinstance(cell.value, (int, float)):
+                cell.number_format = num_fmt
+                cell.alignment = Alignment(horizontal="right")
+
+            # 기본 폰트
+            cell.font = normal_font
+            cell.border = cell_border
+
+        # 네최몰 셀 하이퍼링크 (링크가 있고 mall_name이 있을 때)
+        if result.naver_lowest_link and result.naver_lowest_mall:
             cell_mall = ws.cell(row=row_idx, column=naver_mall_col)
             cell_mall.hyperlink = result.naver_lowest_link
-            cell_mall.font = Font(color=COLOR_HYPERLINK, underline="single", name="맑은 고딕")
+            cell_mall.font = link_font
 
-        # 쿠팡가 셀에 하이퍼링크
-        if result.coupang_link:
-            cell_cp = ws.cell(row=row_idx, column=coupang_price_col)
-            cell_cp.hyperlink = result.coupang_link
-            cell_cp.font = Font(color=COLOR_HYPERLINK, underline="single", name="맑은 고딕")
-            cell_cp.number_format = num_fmt
-
-        # 스스가 셀에 하이퍼링크
-        if result.smartstore_link:
-            cell_ss = ws.cell(row=row_idx, column=ss_price_col)
-            cell_ss.hyperlink = result.smartstore_link
-            cell_ss.font = Font(color=COLOR_HYPERLINK, underline="single", name="맑은 고딕")
-            cell_ss.number_format = num_fmt
-
-    # 열 너비 자동 조정 + 숨김 열 처리
-    for col_idx, col_name in enumerate(COLUMNS, start=1):
-        col_letter = get_column_letter(col_idx)
-        if col_name == "비고":
-            ws.column_dimensions[col_letter].width = 40
-        elif col_name == "상품명":
-            ws.column_dimensions[col_letter].width = 30
-        elif col_name in ("쿠팡링크", "스스링크", "네최링크"):
-            ws.column_dimensions[col_letter].width = 50
-            ws.column_dimensions[col_letter].hidden = True
+    # ── 열 너비 + 숨김 처리 ──
+    col_widths = {
+        "상품코드": 14, "상품명": 32, "비고": 45,
+        "네최몰": 18,
+        **{c: 13 for c in PRICE_COLUMNS},
+    }
+    for col_idx, col_name in enumerate(columns, start=1):
+        letter = get_column_letter(col_idx)
+        if col_name in LINK_COLUMNS:
+            ws.column_dimensions[letter].width = 60
+            ws.column_dimensions[letter].hidden = True
         else:
-            ws.column_dimensions[col_letter].width = 14
+            ws.column_dimensions[letter].width = col_widths.get(col_name, 14)
 
-    # 필터 적용
-    ws.auto_filter.ref = f"A1:{get_column_letter(len(COLUMNS))}{ws.max_row}"
+    # ── 자동 필터 ──
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(columns))}{ws.max_row}"
 
-    # 폰트 기본 설정 (하이퍼링크 셀 제외한 일반 셀)
-    for row in ws.iter_rows(min_row=2):
-        for cell in row:
-            if cell.font and not cell.font.underline:
-                cell.font = Font(name="맑은 고딕", size=10)
+    # ── 행 고정 (헤더 고정) ──
+    ws.freeze_panes = "A2"
 
     wb.save(output_path)
