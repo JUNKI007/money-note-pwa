@@ -25,7 +25,7 @@ SELECTORS: dict = {
         # 상품 링크 (href)
         "item_link": "a.search-product-link",
         # 차단/캡차 감지 텍스트 (포함 여부 확인)
-        "block_keywords": ["로봇", "captcha", "CAPTCHA", "인증", "차단"],
+        "block_keywords": ["로봇이 아닙니다", "captcha", "CAPTCHA", "본인인증", "자동입력 방지"],
     },
     "naver": {
         # 검색 결과 아이템
