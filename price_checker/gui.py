@@ -110,103 +110,128 @@ QCheckBox::indicator:checked {
     border-color: #FF7FA3;
 }
 
-/* 분홍 젤리 버튼 */
+/* 파일 선택 (분홍) 버튼 */
 QPushButton#btnPink {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #FFB6C9, stop:1 #FF9AB8);
+    background-color: #FF9AB8;
     color: #333333;
-    border: none;
+    border: 1.5px solid #FF80A8;
     border-radius: 10px;
     padding: 7px 16px;
     font-family: '맑은 고딕';
     font-size: 11px;
     font-weight: bold;
+    min-height: 32px;
 }
 QPushButton#btnPink:hover {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #FFC8D6, stop:1 #FFB0CA);
+    background-color: #FFB0CA;
+    border-color: #FF9AB8;
 }
 QPushButton#btnPink:pressed {
-    background: #FF7FA3;
+    background-color: #FF7FA3;
 }
 
-/* 노랑 젤리 버튼 */
+/* 저장 위치 (노랑) 버튼 */
 QPushButton#btnYellow {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #FFE79A, stop:1 #FFDA70);
+    background-color: #FFDA70;
     color: #333333;
-    border: none;
+    border: 1.5px solid #FFC940;
     border-radius: 10px;
     padding: 7px 16px;
     font-family: '맑은 고딕';
     font-size: 11px;
     font-weight: bold;
+    min-height: 32px;
 }
 QPushButton#btnYellow:hover {
-    background: #FFECA0;
+    background-color: #FFE79A;
+    border-color: #FFDA70;
 }
 QPushButton#btnYellow:pressed {
-    background: #FFC940;
+    background-color: #FFC940;
 }
 
-/* 시작 버튼 (크고 진한 분홍) */
+/* ── 검색 시작 버튼 ── */
 QPushButton#btnStart {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #FF7FA3, stop:1 #FF5C8A);
+    background-color: #FF7FA3;
     color: #FFFFFF;
-    border: none;
+    border: 1.5px solid #FF6B95;
     border-radius: 12px;
     padding: 10px 28px;
     font-family: '맑은 고딕';
     font-size: 13px;
     font-weight: bold;
-    min-width: 120px;
+    min-width: 110px;
+    min-height: 38px;
 }
 QPushButton#btnStart:hover {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #FF9AB8, stop:1 #FF7FA3);
+    background-color: #FF96B5;
+    border-color: #FF7FA3;
+    color: #FFFFFF;
+}
+QPushButton#btnStart:pressed {
+    background-color: #FF5C8A;
+    color: #FFFFFF;
 }
 QPushButton#btnStart:disabled {
-    background: #DDDDDD;
-    color: #AAAAAA;
+    background-color: #F2E7EC;
+    color: #A0A0A0;
+    border: 1.5px solid #E6D3DB;
 }
 
-/* 중지 버튼 */
+/* ── 중지 버튼 ── */
 QPushButton#btnStop {
-    background: #F0F0F0;
-    color: #777777;
-    border: 1.5px solid #DDDDDD;
+    background-color: #FF8C42;
+    color: #FFFFFF;
+    border: 1.5px solid #E87A32;
     border-radius: 12px;
     padding: 10px 20px;
     font-family: '맑은 고딕';
     font-size: 12px;
+    font-weight: bold;
+    min-width: 80px;
+    min-height: 38px;
 }
 QPushButton#btnStop:hover {
-    background: #FFE79A;
-    border-color: #FFDA70;
-    color: #333333;
+    background-color: #FFA060;
+    border-color: #FF8C42;
+    color: #FFFFFF;
+}
+QPushButton#btnStop:pressed {
+    background-color: #E06C28;
+    color: #FFFFFF;
 }
 QPushButton#btnStop:disabled {
-    background: #F5F5F5;
-    color: #CCCCCC;
-    border-color: #EEEEEE;
+    background-color: #F2EFED;
+    color: #B0A8A4;
+    border: 1.5px solid #E2DEDD;
 }
 
-/* 결과 열기 버튼 */
+/* ── 결과 엑셀 열기 버튼 ── */
 QPushButton#btnOpen {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #FFB6C9, stop:1 #FF9AB8);
+    background-color: #FFDA70;
     color: #333333;
-    border: none;
+    border: 1.5px solid #FFC940;
     border-radius: 10px;
     padding: 8px 20px;
     font-family: '맑은 고딕';
     font-size: 12px;
     font-weight: bold;
+    min-width: 140px;
+    min-height: 38px;
+}
+QPushButton#btnOpen:hover {
+    background-color: #FFE79A;
+    border-color: #FFDA70;
+    color: #333333;
+}
+QPushButton#btnOpen:pressed {
+    background-color: #FFC940;
+    color: #333333;
 }
 QPushButton#btnOpen:disabled {
-    background: #EEEEEE;
-    color: #BBBBBB;
+    background-color: #F2EFED;
+    color: #B0A8A4;
+    border: 1.5px solid #E2DEDD;
 }
 
 /* 진행률 바 */

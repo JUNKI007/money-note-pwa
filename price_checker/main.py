@@ -4,15 +4,18 @@ import os
 import sys
 from datetime import datetime
 
+# py main.py 직접 실행 시 이 파일이 있는 폴더를 sys.path에 추가
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import QApplication
 
-from price_checker.config import AppConfig
-from price_checker.excel_io import read_products, save_results
-from price_checker.matcher import pick_best, score_candidate, is_excluded_product, SCORE_THRESHOLD
-from price_checker.models import ProductInput, PriceResult, Candidate
-from price_checker.scrapers.coupang import CoupangScraper
-from price_checker.scrapers.naver import NaverScraper
+from config import AppConfig
+from excel_io import read_products, save_results
+from matcher import pick_best, score_candidate, is_excluded_product, SCORE_THRESHOLD
+from models import ProductInput, PriceResult, Candidate
+from scrapers.coupang import CoupangScraper
+from scrapers.naver import NaverScraper
 
 logger = logging.getLogger(__name__)
 
@@ -208,11 +211,12 @@ class SearchWorker(QThread):
 
 
 def main():
-    from price_checker.config import setup_playwright_browsers
+    from config import setup_playwright_browsers
     setup_playwright_browsers()  # exe 실행 시 번들 Chromium 경로 설정
 
-    from price_checker.gui import MainWindow
+    from gui import MainWindow
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")  # Windows 네이티브 테마 대신 Fusion 사용 → QSS 완전 적용
     app.setApplicationName("Jelly Price Checker")
     window = MainWindow()
     window.show()
