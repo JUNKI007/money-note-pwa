@@ -50,14 +50,11 @@ def test_save_results_creates_file(tmp_path):
     results = [
         PriceResult(
             code="A001", name="지오마 화이트머스크 600g",
-            coupang_price=18900, coupang_shipping=0, coupang_total=18900,
-            smartstore_price=19000, smartstore_shipping=3000, smartstore_total=22000,
-            naver_lowest_mall="올리브영", naver_lowest_price=17900,
-            naver_lowest_shipping=0, naver_lowest_total=17900,
+            naver_lowest_mall="올리브영",
+            naver_lowest_price=17900,
+            naver_lowest_shipping=0,
+            naver_lowest_total=17900,
             note="",
-            coupang_link="https://coupang.com/test",
-            smartstore_link="https://smartstore.naver.com/test",
-            naver_lowest_link="https://oliveyoung.co.kr/test",
         )
     ]
     out = str(tmp_path / "result.xlsx")
@@ -65,5 +62,5 @@ def test_save_results_creates_file(tmp_path):
     assert os.path.exists(out)
     df = pd.read_excel(out)
     assert "상품코드" in df.columns
-    assert "쿠팡가" in df.columns
-    assert df.iloc[0]["쿠팡가"] == 18900
+    assert "네최가" in df.columns
+    assert df.iloc[0]["네최가"] == 17900
