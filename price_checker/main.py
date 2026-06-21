@@ -29,6 +29,9 @@ def build_result(
     # --- 쿠팡 ---
     cp_error = next((c for c in coupang_candidates if "확인불가" in c.note), None)
     if cp_error:
+        # 가격은 기록하되 배송비/합계는 None으로 유지
+        result.coupang_price = cp_error.price
+        result.coupang_link = cp_error.link
         notes.append(cp_error.note)
     else:
         cp_best = pick_best(product.name, coupang_candidates)
