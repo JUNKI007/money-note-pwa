@@ -468,8 +468,9 @@ class MainWindow(QMainWindow):
         )
 
         # 이전 worker가 있으면 정리
-        if self._worker and self._worker.isRunning():
-            self._worker.stop()
+        if self._worker is not None:
+            if self._worker.isRunning():
+                self._worker.stop()
             self._worker.quit()
             self._worker.wait(3000)  # 최대 3초 대기
 
