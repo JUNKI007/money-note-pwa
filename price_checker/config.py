@@ -1,3 +1,5 @@
+import os
+import sys
 from dataclasses import dataclass, field
 
 
@@ -48,3 +50,23 @@ SELECTORS: dict = {
 }
 
 DEFAULT_CONFIG = AppConfig()
+
+
+def setup_playwright_browsers() -> None:
+    """
+    PyInstaller로 빌드된 exe 실행 시, 번들에 포함된 Chromium 경로를
+    PLAYWRIGHT_BROWSERS_PATH 환경변수로 설정한다.
+
+    빌드 구조:
+        dist/JellyPriceChecker/
+            JellyPriceChecker.exe
+            browsers/
+                chromium-XXXX/      ← build_exe.bat이 복사
+    """
+    if not getattr(sys, "frozen", False):
+        return  # 개발 환경 — 이미 설치된 시스템 브라우저 사용
+
+    exe_dir = os.path.dirname(sys.executable)
+    bundled = os.path.join(exe_dir, "browsers")
+    if os.path.isdir(bundled):
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = bundled

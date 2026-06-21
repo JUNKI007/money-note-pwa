@@ -208,6 +208,9 @@ class SearchWorker(QThread):
 
 
 def main():
+    from price_checker.config import setup_playwright_browsers
+    setup_playwright_browsers()  # exe 실행 시 번들 Chromium 경로 설정
+
     from price_checker.gui import MainWindow
     app = QApplication(sys.argv)
     app.setApplicationName("Jelly Price Checker")
