@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QApplication
 
 from price_checker.config import AppConfig
 from price_checker.excel_io import read_products, save_results
-from price_checker.matcher import pick_best
+from price_checker.matcher import pick_best, score_candidate, is_excluded_product, SCORE_THRESHOLD
 from price_checker.models import ProductInput, PriceResult, Candidate
 from price_checker.scrapers.coupang import CoupangScraper
 from price_checker.scrapers.naver import NaverScraper
@@ -62,7 +62,11 @@ def build_result(
 
         # --- 네이버 최저가 (배송비 포함 기준, 확인된 것끼리만 비교) ---
         all_naver = [c for c in naver_candidates if "확인불가" not in c.note]
-        matched = [c for c in all_naver if pick_best(product.name, [c]) is not None]
+        matched = [
+            c for c in all_naver
+            if not is_excluded_product(product.name, c.title)
+            and score_candidate(product.name, c) >= SCORE_THRESHOLD
+        ]
 
         # 배송비+가격 모두 확인된 것만 총액 비교
         with_total = [c for c in matched if c.total_price is not None]
