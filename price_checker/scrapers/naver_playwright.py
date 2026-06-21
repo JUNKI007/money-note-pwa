@@ -1,15 +1,18 @@
 """
 네이버 쇼핑 Playwright 기반 가격 수집기.
 
-- headful 모드 (headless=False) 기본값
-- 실제 검색창에 상품명 타이핑 후 Enter
-- Access Denied / 캡차 / 로그인 감지 시 우회 없이 확인불가 처리
-- 배송비가 화면에 보이면 수집, 없으면 None 처리
-- 링크는 수집만 하고 결과에 노출하지 않음 (매칭 판단용)
+접근 방식:
+- 검색창 탐색 없이 검색 결과 URL에 직접 접근
+  https://search.shopping.naver.com/search/all?query=<인코딩된 상품명>
+- 로그인/차단 페이지 감지 시 우회 없이 확인불가 처리
+- 실패 시 debug/ 폴더에 스크린샷·URL·타이틀·body 앞 1000자 저장
 """
 
 import logging
+import os
 import re
+import time
+from urllib.parse import quote
 
 from playwright.sync_api import (
     sync_playwright, Browser, BrowserContext, Page, Playwright,
@@ -21,13 +24,18 @@ from scrapers.base import BaseScraper
 
 logger = logging.getLogger(__name__)
 
-_NAVER_SHOPPING_HOME = "https://search.shopping.naver.com/"
+_SEARCH_URL = "https://search.shopping.naver.com/search/all?query={query}"
 _PRICE_RE = re.compile(r"\d[\d,]*")
+
+# debug 덤프 저장 폴더 (price_checker/ 하위)
+_DEBUG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "debug")
 
 
 def _parse_price(text: str) -> int | None:
     if not text:
         return None
+    m = _PRICE_RE.search(text.replace(" ", "").replace("\xa0", "").replace(",", ""))
+    # 다시 콤마 없이 숫자만 찾기
     m = _PRICE_RE.search(text.replace(" ", "").replace("\xa0", ""))
     return int(m.group().replace(",", "")) if m else None
 
@@ -44,13 +52,54 @@ def _error_candidate(note: str) -> Candidate:
     )
 
 
-def _detect_block(page: Page) -> str | None:
+def _save_debug(page: Page, name: str) -> None:
+    """실패 시 스크린샷·URL·타이틀·body 앞 1000자를 debug/ 폴더에 저장."""
+    try:
+        os.makedirs(_DEBUG_DIR, exist_ok=True)
+        safe = re.sub(r'[\\/:*?"<>|]', "_", name)[:40]
+
+        # 스크린샷
+        png_path = os.path.join(_DEBUG_DIR, f"{safe}.png")
+        page.screenshot(path=png_path, full_page=False)
+
+        # URL + 타이틀 + body 앞 1000자
+        current_url = page.url
+        title = ""
+        body_excerpt = ""
+        try:
+            title = page.title()
+        except Exception:
+            pass
+        try:
+            body_excerpt = page.inner_text("body", timeout=3000)[:1000]
+        except Exception:
+            pass
+
+        txt_path = os.path.join(_DEBUG_DIR, f"{safe}.txt")
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(f"URL: {current_url}\n")
+            f.write(f"Title: {title}\n\n")
+            f.write("--- body (첫 1000자) ---\n")
+            f.write(body_excerpt)
+
+        logger.debug(f"[debug] 저장: {png_path}, {txt_path}")
+    except Exception as e:
+        logger.debug(f"[debug] 저장 실패: {e}")
+
+
+def _classify_page(page: Page) -> str | None:
     """
-    차단/캡차/로그인 감지.
-    - 로그인 창이면 "네이버 로그인 요구"
-    - 그 외 차단이면 "네이버 Access Denied"
-    - 정상이면 None
+    현재 페이지가 로그인/차단 페이지인지 판별한다.
+    - 로그인 페이지 → "네이버 로그인 페이지로 리다이렉트됨"
+    - Access Denied  → "네이버 Access Denied"
+    - 정상           → None
     """
+    current_url = page.url
+
+    # URL로 로그인 페이지 1차 감지
+    if "nid.naver.com" in current_url or "naver.com/nidlogin" in current_url:
+        return "네이버 로그인 페이지로 리다이렉트됨"
+
     try:
         body = page.inner_text("body", timeout=3000)
     except Exception:
@@ -58,23 +107,20 @@ def _detect_block(page: Page) -> str | None:
 
     lower = body.lower()
 
-    # 로그인 요구 먼저 확인
     for kw in NAVER_LOGIN_KEYWORDS:
         if kw.lower() in lower:
-            return "네이버 로그인 요구"
+            return "네이버 로그인 페이지로 리다이렉트됨"
 
-    # 그 외 차단
     for kw in NAVER_BLOCK_KEYWORDS:
         if kw.lower() in lower:
-            return f"네이버 Access Denied ({kw})"
+            return f"네이버 Access Denied"
 
     return None
 
 
 class NaverPlaywrightScraper(BaseScraper):
     """
-    sync_playwright를 사용해 headful Chromium으로 네이버 쇼핑을 탐색한다.
-    start() / close() 로 브라우저 생명주기를 명시적으로 관리한다.
+    headful Chromium으로 네이버 쇼핑 검색 결과 URL에 직접 접근해 가격을 수집한다.
     """
 
     def __init__(self, config: AppConfig):
@@ -107,60 +153,64 @@ class NaverPlaywrightScraper(BaseScraper):
         candidates: list[Candidate] = []
 
         try:
-            # ── 1. 네이버 쇼핑 홈 이동 ──────────────────────────────────────
-            page.goto(_NAVER_SHOPPING_HOME, timeout=20000, wait_until="domcontentloaded")
+            # ── 1. 검색 결과 URL 직접 접근 ─────────────────────────────────
+            url = _SEARCH_URL.format(query=quote(name))
+            logger.debug(f"[{name}] 접근 URL: {url}")
+            page.goto(url, timeout=25000, wait_until="domcontentloaded")
 
-            # ── 2. 초기 차단/로그인 감지 ───────────────────────────────────
-            block_msg = _detect_block(page)
+            # ── 2. 로딩 대기 (3~5초) ──────────────────────────────────────
+            time.sleep(3)
+
+            # ── 3. 현재 URL 확인 — 로그인/차단 감지 ───────────────────────
+            block_msg = _classify_page(page)
             if block_msg:
-                logger.warning(f"[{name}] 초기 접속 차단: {block_msg}")
+                logger.warning(f"[{name}] {block_msg} (URL: {page.url})")
+                _save_debug(page, name)
                 return [_error_candidate(f"{block_msg} / 수동확인필요")]
 
-            # ── 3. 검색창 탐색 ─────────────────────────────────────────────
-            search_box = None
+            # ── 4. HTTP 418 등 비정상 상태코드 감지 ───────────────────────
+            # (Playwright는 status를 직접 제공하지 않으므로 title로 감지)
+            try:
+                page_title = page.title()
+                if "418" in page_title or "access denied" in page_title.lower():
+                    _save_debug(page, name)
+                    return [_error_candidate("네이버 확인불가 (HTTP 418 또는 Access Denied)")]
+            except Exception:
+                pass
+
+            # ── 5. 상품 카드 존재 확인 ─────────────────────────────────────
+            # 여러 selector를 시도, 타임아웃은 짧게
+            item_sel = None
             for sel in [
-                "input[name='query']",
-                "input[placeholder*='검색']",
-                "input[type='search']",
+                "li.basicList_item__",   # 네이버 쇼핑 22년~ 클래스
+                "[class*='basicList_item__']",
+                "div.product_item",
+                "li[class*='product_item']",
+                "div[class*='ProductCard']",
             ]:
                 try:
-                    search_box = page.wait_for_selector(sel, timeout=5000)
-                    if search_box:
-                        break
+                    page.wait_for_selector(sel, timeout=8000)
+                    item_sel = sel
+                    break
                 except Exception:
                     continue
 
-            if not search_box:
-                # 검색창이 없으면 로그인 창일 가능성 높음
-                block_msg = _detect_block(page) or "네이버 로그인 요구"
-                logger.warning(f"[{name}] 검색창 없음 — {block_msg}")
-                return [_error_candidate(f"{block_msg} / 수동확인필요")]
+            if item_sel is None:
+                _save_debug(page, name)
+                # 결과가 없는 것인지 selector 불일치인지 구별
+                try:
+                    body_text = page.inner_text("body", timeout=2000)
+                    if "검색 결과가 없습니다" in body_text or "결과없음" in body_text:
+                        return [_error_candidate("네이버 검색결과 없음")]
+                except Exception:
+                    pass
+                return [_error_candidate("네이버 결과 selector 확인필요")]
 
-            # ── 4. 검색어 입력 ──────────────────────────────────────────────
-            search_box.triple_click()
-            search_box.type(name, delay=60)
-            page.keyboard.press("Enter")
-
-            # ── 5. 검색 결과 로딩 대기 ─────────────────────────────────────
-            result_sel = "[class*='basicList_item__'], [class*='product_item']"
-            try:
-                page.wait_for_selector(result_sel, timeout=18000)
-            except Exception:
-                block_msg = _detect_block(page)
-                if block_msg:
-                    logger.warning(f"[{name}] 검색 후 차단: {block_msg}")
-                    return [_error_candidate(f"{block_msg} / 수동확인필요")]
-                logger.warning(f"[{name}] 검색 결과 없음 (타임아웃)")
-                return [_error_candidate("네이버 검색 결과 없음")]
-
-            # ── 6. 결과 화면 차단 재확인 ──────────────────────────────────
-            block_msg = _detect_block(page)
-            if block_msg:
-                logger.warning(f"[{name}] 결과 화면 차단: {block_msg}")
-                return [_error_candidate(f"{block_msg} / 수동확인필요")]
-
-            # ── 7. 상품 목록 파싱 ──────────────────────────────────────────
-            items = page.query_selector_all("[class*='basicList_item__']")
+            # ── 6. 상품 목록 파싱 ──────────────────────────────────────────
+            items = page.query_selector_all(item_sel)
+            # selector가 일반 클래스 prefix인 경우에도 재시도
+            if not items:
+                items = page.query_selector_all("[class*='basicList_item__']")
             if not items:
                 items = page.query_selector_all("div.product_item")
 
@@ -173,13 +223,21 @@ class NaverPlaywrightScraper(BaseScraper):
                     logger.debug(f"아이템 파싱 오류: {e}")
                     continue
 
+            if not candidates:
+                _save_debug(page, name)
+                return [_error_candidate("네이버 결과 selector 확인필요")]
+
         except Exception as e:
             logger.error(f"[{name}] Playwright 오류: {e}")
+            try:
+                _save_debug(page, name)
+            except Exception:
+                pass
             candidates = [_error_candidate(f"네이버 확인불가 / {type(e).__name__}")]
         finally:
             page.close()
 
-        return candidates or [_error_candidate("네이버 검색 결과 없음")]
+        return candidates
 
     def close(self) -> None:
         try:
@@ -200,13 +258,15 @@ class NaverPlaywrightScraper(BaseScraper):
 def _parse_item(item) -> Candidate | None:
     """단일 상품 카드에서 Candidate를 생성한다. 가격 없으면 None."""
 
-    # 상품명 + 링크 (링크는 매칭용으로만 사용, 결과에 노출 안 함)
+    # ── 상품명 + 링크 ────────────────────────────────────────────────────
     title = ""
     href = ""
     for sel in [
         "[class*='basicList_title__'] a",
-        "a[class*='product_title_']",
+        "[class*='product_title'] a",
+        "a[class*='ProductCard_link']",
         "a[href*='search.shopping.naver']",
+        "a[href*='shopping.naver']",
     ]:
         el = item.query_selector(sel)
         if el:
@@ -215,14 +275,24 @@ def _parse_item(item) -> Candidate | None:
             break
 
     if not title:
+        # 마지막 수단: item 내 첫 번째 <a> 텍스트
+        el = item.query_selector("a")
+        if el:
+            title = el.inner_text().strip()
+            href = el.get_attribute("href") or ""
+
+    if not title:
         return None
 
-    # 가격
+    # ── 가격 ────────────────────────────────────────────────────────────
     price = None
     for sel in [
         "[class*='price_num__']",
-        "[class*='product_price__'] strong",
+        "[class*='ProductCard_price']",
+        "[class*='price_'] strong",
         "[class*='price_'] em",
+        "strong[class*='price']",
+        "em[class*='num']",
     ]:
         el = item.query_selector(sel)
         if el:
@@ -233,25 +303,28 @@ def _parse_item(item) -> Candidate | None:
     if price is None:
         return None
 
-    # 몰명
+    # ── 판매처(몰)명 ────────────────────────────────────────────────────
     mall_name = ""
     for sel in [
         "[class*='basicList_mall_name__']",
         "[class*='mall_name__']",
-        "[class*='product_mall_']",
+        "[class*='ProductCard_mall']",
+        "[class*='product_mall']",
     ]:
         el = item.query_selector(sel)
         if el:
             mall_name = el.inner_text().strip()
             break
 
-    # 배송비
+    # ── 배송비 ──────────────────────────────────────────────────────────
     shipping: int | None = None
     note = ""
     for sel in [
         "[class*='basicList_ship__']",
+        "[class*='ProductCard_delivery']",
         "[class*='delivery_']",
         "[class*='shipping_']",
+        "[class*='ship_']",
     ]:
         el = item.query_selector(sel)
         if el:
@@ -275,7 +348,7 @@ def _parse_item(item) -> Candidate | None:
         price=price,
         shipping_fee=shipping,
         total_price=total,
-        link=href,          # 매칭 판단용, 엑셀에 출력 안 함
+        link=href,
         matched_score=0.0,
         note=note,
     )
