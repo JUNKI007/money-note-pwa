@@ -1,0 +1,234 @@
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #F0F4F8;
+    --card: #FFFFFF;
+    --header: #3F5F7F;
+    --accent: #6F8FAF;
+    --plus: #4A90A4;
+    --minus: #E57373;
+    --move: #81B29A;
+    --text: #2D3748;
+    --text-sub: #718096;
+    --border: #E2E8F0;
+    --radius: 12px;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    max-width: 480px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  /* ── 인증 화면 ── */
+  #auth-screen {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 24px; background: var(--header);
+  }
+  #auth-screen h1 { color: #fff; font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+  #auth-screen p { color: rgba(255,255,255,0.7); font-size: 14px; margin-bottom: 32px; }
+  .pin-dots { display: flex; gap: 16px; margin-bottom: 32px; }
+  .pin-dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: rgba(255,255,255,0.3); transition: background 0.2s;
+  }
+  .pin-dot.filled { background: #fff; }
+  .pin-pad { display: grid; grid-template-columns: repeat(3, 72px); gap: 12px; }
+  .pin-key {
+    width: 72px; height: 72px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,0.15); color: #fff; font-size: 20px;
+    font-family: inherit; cursor: pointer; transition: background 0.15s;
+  }
+  .pin-key:active { background: rgba(255,255,255,0.35); }
+  .pin-key.del { font-size: 16px; }
+
+  /* ── 앱 레이아웃 ── */
+  #app { display: none; flex-direction: column; min-height: 100vh; }
+  #app.visible { display: flex; }
+
+  .app-header {
+    background: var(--header); color: #fff; padding: 16px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .app-header h1 { font-size: 18px; font-weight: 700; }
+  .app-header .month-nav { display: flex; align-items: center; gap: 8px; }
+  .app-header .month-nav button {
+    background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; padding: 4px;
+  }
+  .app-header .month-label { font-size: 15px; font-weight: 500; min-width: 80px; text-align: center; }
+
+  .tab-content { flex: 1; overflow-y: auto; padding-bottom: 80px; }
+  .tab-pane { display: none; padding: 16px; }
+  .tab-pane.active { display: block; }
+
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 480px; background: var(--card);
+    border-top: 1px solid var(--border); display: flex;
+    z-index: 100;
+  }
+  .nav-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    padding: 10px 0; border: none; background: none; color: var(--text-sub);
+    font-size: 10px; font-family: inherit; cursor: pointer; gap: 4px;
+  }
+  .nav-btn .icon { font-size: 22px; }
+  .nav-btn.active { color: var(--accent); }
+  .nav-btn.active .icon { transform: scale(1.1); }
+
+  /* ── 카드 ── */
+  .card {
+    background: var(--card); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 16px; margin-bottom: 12px;
+  }
+  .card-title { font-size: 13px; color: var(--text-sub); margin-bottom: 8px; }
+  .card-value { font-size: 22px; font-weight: 700; color: var(--text); }
+  .card-sub { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
+
+  /* ── 홈 탭 ── */
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .summary-card { background: var(--card); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
+  .summary-card .label { font-size: 12px; color: var(--text-sub); }
+  .summary-card .amount { font-size: 18px; font-weight: 700; margin-top: 4px; }
+  .summary-card .amount.plus { color: var(--plus); }
+  .summary-card .amount.minus { color: var(--minus); }
+  .summary-card .amount.net { color: var(--header); }
+  .chart-wrap { height: 200px; position: relative; }
+  .weekly-bar { display: flex; gap: 8px; align-items: flex-end; height: 80px; margin-top: 8px; }
+  .weekly-bar .bar { flex: 1; border-radius: 4px 4px 0 0; min-height: 4px; transition: height 0.3s; }
+  .weekly-bar .bar.this { background: var(--accent); }
+  .weekly-bar .bar.last { background: var(--border); }
+
+  /* ── 입력 탭 ── */
+  .flow-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
+  .flow-btn {
+    flex: 1; padding: 10px; border: 2px solid var(--border); border-radius: 8px;
+    background: none; font-family: inherit; font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s; color: var(--text-sub);
+  }
+  .flow-btn.active-plus { border-color: var(--plus); background: var(--plus); color: #fff; }
+  .flow-btn.active-minus { border-color: var(--minus); background: var(--minus); color: #fff; }
+  .flow-btn.active-move { border-color: var(--move); background: var(--move); color: #fff; }
+
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 13px; color: var(--text-sub); margin-bottom: 6px; display: block; }
+  .form-control {
+    width: 100%; padding: 12px 14px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 15px; font-family: inherit;
+    background: var(--card); color: var(--text); outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-control:focus { border-color: var(--accent); }
+  select.form-control { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M0 0l6 8 6-8z' fill='%23718096'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; }
+
+  .category-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .cat-btn {
+    padding: 10px 4px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--card); font-family: inherit; font-size: 12px;
+    cursor: pointer; text-align: center; transition: all 0.2s; color: var(--text);
+  }
+  .cat-btn.selected { border-color: var(--accent); background: var(--accent); color: #fff; }
+
+  .btn-primary {
+    width: 100%; padding: 14px; background: var(--header); color: #fff;
+    border: none; border-radius: var(--radius); font-size: 16px;
+    font-family: inherit; font-weight: 700; cursor: pointer; margin-top: 8px;
+    transition: background 0.2s;
+  }
+  .btn-primary:active { background: var(--accent); }
+
+  /* ── 내역 탭 ── */
+  .tx-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 0; border-bottom: 1px solid var(--border);
+  }
+  .tx-item:last-child { border-bottom: none; }
+  .tx-left { display: flex; align-items: center; gap: 12px; }
+  .tx-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .tx-icon.plus { background: rgba(74,144,164,0.12); }
+  .tx-icon.minus { background: rgba(229,115,115,0.12); }
+  .tx-icon.move { background: rgba(129,178,154,0.12); }
+  .tx-cat { font-size: 14px; font-weight: 500; }
+  .tx-detail { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+  .tx-amount { font-size: 16px; font-weight: 700; }
+  .tx-amount.plus { color: var(--plus); }
+  .tx-amount.minus { color: var(--minus); }
+  .tx-amount.move { color: var(--move); }
+  .tx-date { font-size: 11px; color: var(--text-sub); text-align: right; margin-top: 2px; }
+
+  /* ── 캘린더 탭 ── */
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .cal-header-cell { text-align: center; font-size: 11px; color: var(--text-sub); padding: 4px 0; font-weight: 500; }
+  .cal-header-cell:first-child { color: #E57373; }
+  .cal-header-cell:last-child { color: var(--accent); }
+  .cal-day {
+    aspect-ratio: 1; display: flex; flex-direction: column; align-items: center;
+    padding: 2px; border-radius: 6px; cursor: pointer; transition: background 0.15s; position: relative;
+  }
+  .cal-day:hover { background: var(--bg); }
+  .cal-day.today { background: var(--accent); }
+  .cal-day.today .cal-day-num { color: #fff; font-weight: 700; }
+  .cal-day.other-month .cal-day-num { color: var(--border); }
+  .cal-day-num { font-size: 13px; line-height: 1.4; }
+  .cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--minus); margin-top: 1px; }
+
+  /* ── 모달 ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 200; display: none; align-items: flex-end;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-sheet {
+    background: var(--card); width: 100%; max-width: 480px; margin: 0 auto;
+    border-radius: var(--radius) var(--radius) 0 0; padding: 20px;
+    max-height: 90vh; overflow-y: auto;
+    animation: slideUp 0.25s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+  .modal-close {
+    position: absolute; top: 16px; right: 16px; background: none;
+    border: none; font-size: 22px; cursor: pointer; color: var(--text-sub);
+  }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+    background: #2D3748; color: #fff; padding: 10px 20px; border-radius: 20px;
+    font-size: 14px; opacity: 0; transition: opacity 0.3s; z-index: 300;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+
+  /* ── 설정 탭 ── */
+  .setting-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 0; border-bottom: 1px solid var(--border);
+  }
+  .setting-label { font-size: 15px; }
+  .setting-value { font-size: 14px; color: var(--text-sub); }
+  .btn-outline {
+    padding: 8px 16px; border: 1px solid var(--accent); border-radius: 8px;
+    background: none; color: var(--accent); font-family: inherit; font-size: 13px; cursor: pointer;
+  }
+
+  /* ── 유틸 ── */
+  .loading { text-align: center; padding: 40px; color: var(--text-sub); font-size: 14px; }
+  .empty { text-align: center; padding: 40px; color: var(--text-sub); font-size: 14px; }
+  .text-right { text-align: right; }
+  .mt-8 { margin-top: 8px; }
+  .mb-8 { margin-bottom: 8px; }
+  .flex-between { display: flex; justify-content: space-between; align-items: center; }
+</style>
