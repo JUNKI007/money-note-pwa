@@ -55,7 +55,11 @@ function getLoans(filters) {
       rows = rows.filter(r => r.member === filters.member);
     }
     if (filters.is_active !== undefined) {
-      rows = rows.filter(r => r.is_active === filters.is_active);
+      const want = filters.is_active === true || filters.is_active === 'true' || filters.is_active === 'TRUE';
+      rows = rows.filter(r => {
+        const val = r.is_active === true || r.is_active === 'true' || r.is_active === 'TRUE';
+        return val === want;
+      });
     }
 
     // 최신순 정렬 (created_at 기준)
@@ -88,14 +92,15 @@ function updateLoanBalance(loan_id, repaymentAmount) {
 
     // 잔액 감소 (최소 0)
     const newBalance = Math.max(0, parseAmount(row.balance) - amount);
+    const now = formatDateTime();
 
     SheetService.updateRow('LOANS', row._rowIndex, {
       balance: newBalance,
-      updated_at: formatDateTime()
+      updated_at: now
     });
 
     // 응답에는 최신 정보 포함
-    return successResponse({ ...row, balance: newBalance, updated_at: formatDateTime() });
+    return successResponse({ ...row, balance: newBalance, updated_at: now });
   } catch (e) {
     return errorResponse(e.message);
   }
@@ -111,6 +116,11 @@ function updateLoan(loan_id, updates) {
   try {
     const row = SheetService.findRowBy('LOANS', 'loan_id', loan_id);
     if (!row) return errorResponse('대출을 찾을 수 없습니다: ' + loan_id);
+
+    // 삭제된 대출 확인
+    if (row.is_deleted === true || row.is_deleted === 'TRUE' || row.is_deleted === 'true') {
+      return errorResponse('삭제된 대출입니다');
+    }
 
     // 허용된 필드만 업데이트
     const allowed = ['name', 'interest_rate', 'end_date', 'memo'];
@@ -141,13 +151,19 @@ function deactivateLoan(loan_id) {
     const row = SheetService.findRowBy('LOANS', 'loan_id', loan_id);
     if (!row) return errorResponse('대출을 찾을 수 없습니다: ' + loan_id);
 
+    // 삭제된 대출 확인
+    if (row.is_deleted === true || row.is_deleted === 'TRUE' || row.is_deleted === 'true') {
+      return errorResponse('삭제된 대출입니다');
+    }
+
+    const now = formatDateTime();
     SheetService.updateRow('LOANS', row._rowIndex, {
       is_active: false,
-      updated_at: formatDateTime()
+      updated_at: now
     });
 
     // 응답에는 최신 정보 포함
-    return successResponse({ ...row, is_active: false, updated_at: formatDateTime() });
+    return successResponse({ ...row, is_active: false, updated_at: now });
   } catch (e) {
     return errorResponse(e.message);
   }
