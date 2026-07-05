@@ -2,21 +2,239 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0">
   <title>우리집 머니노트</title>
-  <style>
-    body { font-family: sans-serif; max-width: 400px; margin: 40px auto; padding: 16px; color: #1F2933; }
-    h1 { color: #3F5F7F; }
-    .status { background: #F5F7FA; border: 1px solid #D9E1E8; border-radius: 8px; padding: 16px; }
-    .ok { color: #2F9E73; font-weight: bold; }
-  </style>
+  <?!= include('styles'); ?>
 </head>
 <body>
-  <h1>우리집 머니노트</h1>
-  <div class="status">
-    <p class="ok">✅ Phase 1 백엔드 준비 완료</p>
-    <p>initializeSpreadsheet()를 실행한 뒤 이 페이지가 보이면 정상입니다.</p>
-    <p>Phase 2에서 실제 UI로 교체됩니다.</p>
+
+<!-- 인증 화면 -->
+<div id="auth-screen">
+  <h1>🏠 우리집 머니노트</h1>
+  <p>PIN 4자리를 입력해주세요</p>
+  <div class="pin-dots" id="pin-dots">
+    <div class="pin-dot" id="dot-0"></div>
+    <div class="pin-dot" id="dot-1"></div>
+    <div class="pin-dot" id="dot-2"></div>
+    <div class="pin-dot" id="dot-3"></div>
   </div>
+  <div class="pin-pad">
+    <button class="pin-key" onclick="pinInput('1')">1</button>
+    <button class="pin-key" onclick="pinInput('2')">2</button>
+    <button class="pin-key" onclick="pinInput('3')">3</button>
+    <button class="pin-key" onclick="pinInput('4')">4</button>
+    <button class="pin-key" onclick="pinInput('5')">5</button>
+    <button class="pin-key" onclick="pinInput('6')">6</button>
+    <button class="pin-key" onclick="pinInput('7')">7</button>
+    <button class="pin-key" onclick="pinInput('8')">8</button>
+    <button class="pin-key" onclick="pinInput('9')">9</button>
+    <button class="pin-key" onclick="pinInput('0')">0</button>
+    <button class="pin-key del" onclick="pinDelete()">⌫</button>
+  </div>
+</div>
+
+<!-- 앱 본체 -->
+<div id="app">
+  <header class="app-header">
+    <h1 id="header-title">머니노트</h1>
+    <div class="month-nav" id="month-nav">
+      <button onclick="changeMonth(-1)">‹</button>
+      <span class="month-label" id="month-label"></span>
+      <button onclick="changeMonth(1)">›</button>
+    </div>
+  </header>
+
+  <main class="tab-content">
+    <!-- 홈 탭 -->
+    <div class="tab-pane active" id="tab-home">
+      <div class="summary-grid" id="summary-grid">
+        <div class="summary-card">
+          <div class="label">수입</div>
+          <div class="amount plus" id="dash-income">-</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">소비</div>
+          <div class="amount minus" id="dash-expense">-</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">순저축</div>
+          <div class="amount net" id="dash-net">-</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">자산이동</div>
+          <div class="amount" id="dash-asset">-</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">카테고리별 소비</div>
+        <div class="chart-wrap"><canvas id="expense-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">주간 소비 비교</div>
+        <div id="weekly-compare"></div>
+      </div>
+    </div>
+
+    <!-- 입력 탭 -->
+    <div class="tab-pane" id="tab-input">
+      <div class="card">
+        <div class="flow-toggle">
+          <button class="flow-btn" id="btn-plus" onclick="setFlow('플러스')">＋ 플러스</button>
+          <button class="flow-btn" id="btn-minus" onclick="setFlow('마이너스')">－ 마이너스</button>
+          <button class="flow-btn" id="btn-move" onclick="setFlow('이동·저축·상환')">⇄ 이동</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">금액</label>
+          <input type="number" class="form-control" id="input-amount" placeholder="0" inputmode="numeric">
+        </div>
+        <div class="form-group">
+          <label class="form-label">카테고리</label>
+          <div class="category-grid" id="category-grid"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">날짜</label>
+          <input type="date" class="form-control" id="input-date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">멤버</label>
+          <select class="form-control" id="input-member">
+            <option value="M001">정준기</option>
+            <option value="M002">박정민</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">메모 (선택)</label>
+          <input type="text" class="form-control" id="input-memo" placeholder="메모">
+        </div>
+        <!-- 대출 연동 (대출상환 카테고리 선택 시 표시) -->
+        <div class="form-group" id="loan-group" style="display:none">
+          <label class="form-label">연결 대출</label>
+          <select class="form-control" id="input-loan-id">
+            <option value="">선택 안 함</option>
+          </select>
+        </div>
+        <!-- 적금 연동 (적금/비상금 카테고리 선택 시 표시) -->
+        <div class="form-group" id="saving-group" style="display:none">
+          <label class="form-label">연결 저축 목표</label>
+          <select class="form-control" id="input-saving-id">
+            <option value="">선택 안 함</option>
+          </select>
+        </div>
+        <button class="btn-primary" onclick="submitTransaction()">저장</button>
+      </div>
+    </div>
+
+    <!-- 내역 탭 -->
+    <div class="tab-pane" id="tab-history">
+      <div class="card" style="padding:12px">
+        <select class="form-control" id="history-member-filter" onchange="loadHistory()">
+          <option value="">전체 멤버</option>
+          <option value="M001">정준기</option>
+          <option value="M002">박정민</option>
+        </select>
+      </div>
+      <div class="card" id="history-list">
+        <div class="loading">불러오는 중...</div>
+      </div>
+    </div>
+
+    <!-- 캘린더 탭 -->
+    <div class="tab-pane" id="tab-calendar">
+      <div class="card" id="calendar-grid-wrap">
+        <div class="loading">불러오는 중...</div>
+      </div>
+      <div class="card" id="calendar-events-list">
+        <div class="empty">날짜를 선택하세요</div>
+      </div>
+    </div>
+
+    <!-- 설정 탭 -->
+    <div class="tab-pane" id="tab-settings">
+      <div class="card">
+        <div class="setting-row">
+          <span class="setting-label">PIN 변경</span>
+          <button class="btn-outline" onclick="showChangePinModal()">변경</button>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">현재 월</span>
+          <span class="setting-value" id="setting-month"></span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 하단 탭바 -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" id="nav-home" onclick="switchTab('home')">
+      <span class="icon">🏠</span>홈
+    </button>
+    <button class="nav-btn" id="nav-input" onclick="switchTab('input')">
+      <span class="icon">✏️</span>입력
+    </button>
+    <button class="nav-btn" id="nav-history" onclick="switchTab('history')">
+      <span class="icon">📋</span>내역
+    </button>
+    <button class="nav-btn" id="nav-calendar" onclick="switchTab('calendar')">
+      <span class="icon">📅</span>캘린더
+    </button>
+    <button class="nav-btn" id="nav-settings" onclick="switchTab('settings')">
+      <span class="icon">⚙️</span>설정
+    </button>
+  </nav>
+</div>
+
+<!-- 이벤트 추가 모달 -->
+<div class="modal-overlay" id="event-modal">
+  <div class="modal-sheet" style="position:relative">
+    <button class="modal-close" onclick="closeModal('event-modal')">✕</button>
+    <div class="modal-title" id="event-modal-title">일정 추가</div>
+    <div class="form-group">
+      <label class="form-label">제목</label>
+      <input type="text" class="form-control" id="event-title">
+    </div>
+    <div class="form-group">
+      <label class="form-label">날짜</label>
+      <input type="date" class="form-control" id="event-date">
+    </div>
+    <div class="form-group">
+      <label class="form-label">카테고리</label>
+      <select class="form-control" id="event-category">
+        <option>급여일</option><option>공과금</option><option>기념일</option>
+        <option>약속</option><option>여행</option><option>기타</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">메모</label>
+      <input type="text" class="form-control" id="event-memo" placeholder="메모 (선택)">
+    </div>
+    <button class="btn-primary" onclick="submitEvent()">저장</button>
+  </div>
+</div>
+
+<!-- PIN 변경 모달 -->
+<div class="modal-overlay" id="pin-modal">
+  <div class="modal-sheet" style="position:relative">
+    <button class="modal-close" onclick="closeModal('pin-modal')">✕</button>
+    <div class="modal-title">PIN 변경</div>
+    <div class="form-group">
+      <label class="form-label">새 PIN (4자리)</label>
+      <input type="password" class="form-control" id="new-pin" maxlength="4" inputmode="numeric" placeholder="••••">
+    </div>
+    <button class="btn-primary" onclick="saveNewPin()">저장</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<?!= include('script-core'); ?>
+<?!= include('script-home'); ?>
+<?!= include('script-input'); ?>
+<?!= include('script-history'); ?>
+<?!= include('script-calendar'); ?>
+<?!= include('script-settings'); ?>
 </body>
 </html>
