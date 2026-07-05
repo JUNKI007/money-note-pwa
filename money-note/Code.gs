@@ -69,3 +69,32 @@ function editLoan(loan_id, updates) {
 function closeLoan(loan_id) {
   return deactivateLoan(loan_id);
 }
+
+// ──────────────────────────────────────────────
+// 적금/저축 관리 함수 (SavingService 래퍼)
+// ──────────────────────────────────────────────
+
+/** 적금/저축 목표 추가 */
+function saveSavingGoal(data) {
+  return addSavingGoal(data);
+}
+
+/** 적금/저축 목표 목록 조회 */
+function listSavingGoals(filters) {
+  return getSavingGoals(filters);
+}
+
+/** 적금 입금 */
+function depositSaving(goal_id, amount) {
+  return updateSavingAmount(goal_id, amount);
+}
+
+/** 적금/저축 목표 정보 수정 */
+function editSavingGoal(goal_id, updates) {
+  return updateSavingGoal(goal_id, updates);
+}
+
+/** 적금/저축 목표 비활성화 */
+function closeSavingGoal(goal_id) {
+  return deactivateSavingGoal(goal_id);
+}
