@@ -80,7 +80,7 @@ function addCalendarEvent(data) {
       linked_transaction_type: data.linked_transaction_type || '',
       linked_loan_id:          data.linked_loan_id || '',
       linked_saving_goal_id:   data.linked_saving_goal_id || '',
-      linked_amount:           data.linked_amount || '',
+      linked_amount:           data.linked_amount != null ? data.linked_amount : '',
       created_by:              data.created_by,
       created_at:              now,
       updated_at:              now,
