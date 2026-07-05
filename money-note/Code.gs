@@ -98,3 +98,19 @@ function editSavingGoal(goal_id, updates) {
 function closeSavingGoal(goal_id) {
   return deactivateSavingGoal(goal_id);
 }
+
+// ──────────────────────────────────────────────
+// 캘린더 일정 관리 함수 (CalendarService 래퍼)
+// ──────────────────────────────────────────────
+
+/** 일정 추가 */
+function addEvent(data) { return addCalendarEvent(data); }
+
+/** 일정 목록 조회 */
+function listEvents(filters) { return getCalendarEvents(filters); }
+
+/** 일정 수정 */
+function editEvent(event_id, updates) { return updateCalendarEvent(event_id, updates); }
+
+/** 일정 삭제 */
+function removeEvent(event_id) { return deleteCalendarEvent(event_id); }
