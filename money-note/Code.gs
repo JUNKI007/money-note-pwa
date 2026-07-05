@@ -40,3 +40,32 @@ function listTransactions(filters) {
 function removeTransaction(transactionId) {
   return deleteTransaction(transactionId);
 }
+
+// ──────────────────────────────────────────────
+// 대출 관리 함수 (LoanService 래퍼)
+// ──────────────────────────────────────────────
+
+/** 대출 추가 */
+function saveLoan(data) {
+  return addLoan(data);
+}
+
+/** 대출 목록 조회 */
+function listLoans(filters) {
+  return getLoans(filters);
+}
+
+/** 대출 상환 */
+function repayLoan(loan_id, amount) {
+  return updateLoanBalance(loan_id, amount);
+}
+
+/** 대출 정보 수정 */
+function editLoan(loan_id, updates) {
+  return updateLoan(loan_id, updates);
+}
+
+/** 대출 비활성화 */
+function closeLoan(loan_id) {
+  return deactivateLoan(loan_id);
+}
