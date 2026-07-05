@@ -1,0 +1,132 @@
+<script>
+// ── 전역 상태 ──
+const STATE = {
+  currentTab: 'home',
+  currentYearMonth: '',  // 'YYYY-MM'
+  pin: '',
+  loans: [],
+  savingGoals: []
+};
+
+// ── PIN 인증 ──
+let _pinBuffer = '';
+
+function pinInput(digit) {
+  if (_pinBuffer.length >= 4) return;
+  _pinBuffer += digit;
+  document.getElementById('dot-' + (_pinBuffer.length - 1)).classList.add('filled');
+  if (_pinBuffer.length === 4) {
+    setTimeout(() => verifyPin(_pinBuffer), 100);
+  }
+}
+
+function pinDelete() {
+  if (_pinBuffer.length === 0) return;
+  _pinBuffer = _pinBuffer.slice(0, -1);
+  document.getElementById('dot-' + _pinBuffer.length).classList.remove('filled');
+}
+
+function verifyPin(pin) {
+  google.script.run
+    .withSuccessHandler(result => {
+      if (result && result.success && result.data === pin) {
+        STATE.pin = pin;
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('app').classList.add('visible');
+        initApp();
+      } else {
+        showToast('PIN이 틀렸습니다');
+        _pinBuffer = '';
+        document.querySelectorAll('.pin-dot').forEach(d => d.classList.remove('filled'));
+      }
+    })
+    .withFailureHandler(() => showToast('오류가 발생했습니다'))
+    .getAppConfig('PIN_CODE');
+}
+
+// ── 앱 초기화 ──
+function initApp() {
+  const now = new Date();
+  STATE.currentYearMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  updateMonthLabel();
+  loadLoansAndGoals();
+  switchTab('home');
+}
+
+function loadLoansAndGoals() {
+  google.script.run
+    .withSuccessHandler(r => { if (r.success) STATE.loans = r.data; })
+    .listLoans({ is_active: true });
+  google.script.run
+    .withSuccessHandler(r => { if (r.success) STATE.savingGoals = r.data; })
+    .listSavingGoals({ is_active: true });
+}
+
+// ── 월 이동 ──
+function changeMonth(delta) {
+  const [y, m] = STATE.currentYearMonth.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  STATE.currentYearMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  updateMonthLabel();
+  refreshCurrentTab();
+}
+
+function updateMonthLabel() {
+  const [y, m] = STATE.currentYearMonth.split('-');
+  document.getElementById('month-label').textContent = y + '년 ' + parseInt(m) + '월';
+  const el = document.getElementById('setting-month');
+  if (el) el.textContent = y + '년 ' + parseInt(m) + '월';
+}
+
+function refreshCurrentTab() {
+  if (STATE.currentTab === 'home') loadDashboard();
+  else if (STATE.currentTab === 'history') loadHistory();
+  else if (STATE.currentTab === 'calendar') loadCalendar();
+}
+
+// ── 탭 전환 ──
+function switchTab(tab) {
+  STATE.currentTab = tab;
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('nav-' + tab).classList.add('active');
+
+  // 월 네비게이션은 홈/내역/캘린더에서만 표시
+  const showMonth = ['home', 'history', 'calendar'].includes(tab);
+  document.getElementById('month-nav').style.display = showMonth ? 'flex' : 'none';
+  document.getElementById('header-title').textContent =
+    tab === 'home' ? '머니노트' :
+    tab === 'input' ? '거래 입력' :
+    tab === 'history' ? '거래 내역' :
+    tab === 'calendar' ? '캘린더' : '설정';
+
+  if (tab === 'home') loadDashboard();
+  else if (tab === 'history') loadHistory();
+  else if (tab === 'calendar') loadCalendar();
+  else if (tab === 'input') initInputTab();
+}
+
+// ── Toast ──
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── Modal ──
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── 포맷 유틸 ──
+function fmtAmount(n) {
+  if (n === undefined || n === null || n === '') return '-';
+  return Number(n).toLocaleString('ko-KR') + '원';
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+</script>
