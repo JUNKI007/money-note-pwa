@@ -1,6 +1,6 @@
 import re
 import difflib
-from price_checker.models import Candidate
+from models import Candidate
 
 # 용량 단위 패턴
 _VOLUME_RE = re.compile(
