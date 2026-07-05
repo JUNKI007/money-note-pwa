@@ -18,6 +18,7 @@ function addSavingGoal(data) {
     const target = parseAmount(data.target_amount);
     if (target <= 0) return errorResponse('목표 금액은 0보다 커야 합니다');
 
+    const now = formatDateTime();
     const goal = {
       goal_id: generateId(SAVING_PREFIX),
       member: data.member,
@@ -28,8 +29,8 @@ function addSavingGoal(data) {
       end_date: data.end_date || '',
       is_active: true,
       memo: data.memo || '',
-      created_at: formatDateTime(),
-      updated_at: formatDateTime(),
+      created_at: now,
+      updated_at: now,
       is_deleted: false
     };
 
