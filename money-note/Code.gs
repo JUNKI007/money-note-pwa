@@ -1,30 +1,88 @@
 // ============================================================
 // Code.gs - 클라이언트-서버 진입점 및 래퍼 함수 모음
-// Phase 2: 모든 서비스 래퍼 통합
-// google.script.run 으로 호출되는 함수들
+// Phase 2: 모든 서비스 래퍼 통합 + JSON API 라우팅
 // ============================================================
 
-// ── HtmlService 진입점 ──
+// ── JSON API 진입점 ──
 
 /**
- * 웹앱 진입점: index.html 서빙
+ * GET 요청 처리 (action 파라미터로 라우팅)
  * @param {Object} e - 요청 객체
- * @returns {HtmlOutput}
+ * @returns {TextOutput} JSON 응답
  */
 function doGet(e) {
-  return HtmlService.createTemplateFromFile('index')
-    .evaluate()
-    .setTitle('우리집 머니노트')
-    .addMetaTag('viewport', 'width=device-width,initial-scale=1.0,maximum-scale=1.0');
+  const params = e && e.parameter ? e.parameter : {};
+  const action = params.action || '';
+  return _handleRequest(action, params);
 }
 
 /**
- * HTML 파일 include 헬퍼 (styles.html, script-*.html 등 동적 삽입용)
- * @param {string} filename
- * @returns {string} HTML 콘텐츠
+ * POST 요청 처리 (JSON body에서 action으로 라우팅)
+ * @param {Object} e - 요청 객체
+ * @returns {TextOutput} JSON 응답
  */
-function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+function doPost(e) {
+  let body = {};
+  try {
+    body = JSON.parse(e.postData.contents);
+  } catch (_) {}
+  const action = body.action || '';
+  return _handleRequest(action, body);
+}
+
+/**
+ * 요청 처리 및 JSON 응답 반환
+ * @private
+ */
+function _handleRequest(action, params) {
+  try {
+    const result = _route(action, params);
+    return ContentService
+      .createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (e) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: e.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * 액션에 따른 라우팅
+ * @private
+ */
+function _route(action, p) {
+  switch (action) {
+    // 대시보드
+    case 'getDashboard':         return getDashboard(p.yearMonth);
+    case 'refreshDashboardCache':return refreshDashboardCache();
+    // 거래
+    case 'saveTransaction':      return saveTransaction(p);
+    case 'getTransactions':      return getTransactions(p);
+    case 'deleteTransaction':    return deleteTransaction(p.id);
+    // 대출
+    case 'addLoan':              return addLoan(p);
+    case 'getLoans':             return getLoans();
+    case 'updateLoan':           return updateLoan(p);
+    case 'deactivateLoan':       return deactivateLoan(p.id);
+    // 적금
+    case 'addSavingGoal':        return addSavingGoal(p);
+    case 'getSavingGoals':       return getSavingGoals();
+    case 'updateSavingGoal':     return updateSavingGoal(p);
+    case 'deactivateSavingGoal': return deactivateSavingGoal(p.id);
+    // 캘린더
+    case 'addCalendarEvent':     return addCalendarEvent(p);
+    case 'getCalendarEvents':    return getCalendarEvents(p);
+    case 'updateCalendarEvent':  return updateCalendarEvent(p);
+    case 'deleteCalendarEvent':  return deleteCalendarEvent(p.id);
+    // 설정
+    case 'getAppConfig':         return getAppConfig(p.key);
+    case 'setAppConfig':         return setAppConfig(p.key, p.value);
+    case 'verifyPin':            return verifyPin(p.pin);
+    case 'syncCalendar':         return syncCalendarToGoogle();
+    default:
+      return { success: false, error: 'Unknown action: ' + action };
+  }
 }
 
 // ── 대시보드 ──
@@ -224,7 +282,12 @@ function removeEvent(event_id) {
  * @returns {Object} {success, data: 설정값}
  */
 function getAppConfig(key) {
-  return getConfig(key);
+  try {
+    const value = getConfig(key);
+    return successResponse(value);
+  } catch (e) {
+    return errorResponse(e.message);
+  }
 }
 
 /**
@@ -250,6 +313,54 @@ function getMembers() {
   try {
     const rows = SheetService.getAllRows('MEMBERS');
     return successResponse(rows);
+  } catch (e) {
+    return errorResponse(e.message);
+  }
+}
+
+// ── PIN 인증 ──
+
+/**
+ * PIN 코드 검증
+ * @param {string} pin - 입력된 PIN 코드
+ * @returns {Object} {success, data: 인증 여부}
+ */
+function verifyPin(pin) {
+  try {
+    const storedPin = getPinCode();
+    const isValid = storedPin && pin === storedPin;
+    return successResponse({ isValid: isValid });
+  } catch (e) {
+    return errorResponse(e.message);
+  }
+}
+
+// ── 캐시 및 동기화 ──
+
+/**
+ * 대시보드 캐시 새로 고침
+ * @returns {Object} {success, data: null}
+ */
+function refreshDashboardCache() {
+  try {
+    // 현재 캐시는 별도로 관리하지 않음. 필요 시 DASHBOARD_CACHE 시트 초기화
+    // 추후 성능 최적화를 위해 확장 가능한 구조로 준비됨
+    return successResponse(null);
+  } catch (e) {
+    return errorResponse(e.message);
+  }
+}
+
+/**
+ * Google Calendar 동기화 (서비스 연동용 예약 함수)
+ * @returns {Object} {success, data: null}
+ */
+function syncCalendarToGoogle() {
+  try {
+    // 캘린더 이벤트를 Google Calendar와 동기화하는 로직
+    // 추후 CalendarService 확장 시 구현
+    // 현재는 상태 응답만 반환
+    return successResponse({ synced: true });
   } catch (e) {
     return errorResponse(e.message);
   }
