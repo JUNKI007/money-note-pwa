@@ -1,0 +1,126 @@
+<script>
+let _calEvents = [];
+let _selectedCalDate = '';
+let _editingEventId = null;
+
+function loadCalendar() {
+  google.script.run
+    .withSuccessHandler(result => {
+      _calEvents = (result && result.success) ? result.data : [];
+      _renderCalendarGrid();
+    })
+    .withFailureHandler(() => showToast('캘린더 로드 실패'))
+    .listEvents({ yearMonth: STATE.currentYearMonth });
+}
+
+function _renderCalendarGrid() {
+  const [y, m] = STATE.currentYearMonth.split('-').map(Number);
+  const firstDay = new Date(y, m - 1, 1).getDay(); // 0=일
+  const lastDate = new Date(y, m, 0).getDate();
+  const today = todayStr();
+
+  // 이벤트 날짜 집합
+  const eventDates = new Set(_calEvents.map(e => e.start_date));
+
+  let html = '<div class="cal-grid">';
+  ['일','월','화','수','목','금','토'].forEach(d => {
+    html += `<div class="cal-header-cell">${d}</div>`;
+  });
+
+  // 앞 공백
+  for (let i = 0; i < firstDay; i++) html += '<div class="cal-day other-month"><div class="cal-day-num"></div></div>';
+
+  for (let d = 1; d <= lastDate; d++) {
+    const dateStr = y + '-' + String(m).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    const isToday = dateStr === today;
+    const hasEvent = eventDates.has(dateStr);
+    html += `<div class="cal-day${isToday ? ' today' : ''}" onclick="selectCalDate('${dateStr}')">
+      <div class="cal-day-num">${d}</div>
+      ${hasEvent ? '<div class="cal-dot"></div>' : ''}
+    </div>`;
+  }
+  html += '</div>';
+
+  document.getElementById('calendar-grid-wrap').innerHTML = html +
+    `<button class="btn-primary mt-8" onclick="openAddEventModal()">+ 일정 추가</button>`;
+
+  if (_selectedCalDate) _renderCalendarEvents(_selectedCalDate);
+}
+
+function selectCalDate(dateStr) {
+  _selectedCalDate = dateStr;
+  _renderCalendarEvents(dateStr);
+}
+
+function _renderCalendarEvents(dateStr) {
+  const events = _calEvents.filter(e => e.start_date === dateStr);
+  const el = document.getElementById('calendar-events-list');
+  if (events.length === 0) {
+    el.innerHTML = `<div class="empty">${dateStr} 일정 없음</div>`;
+    return;
+  }
+  el.innerHTML = events.map(ev => `
+    <div class="tx-item">
+      <div class="tx-left">
+        <div class="tx-icon move">📌</div>
+        <div>
+          <div class="tx-cat">${ev.title}</div>
+          <div class="tx-detail">${ev.category || ''} ${ev.memo ? '· ' + ev.memo : ''}</div>
+        </div>
+      </div>
+      <div class="text-right">
+        <button class="btn-outline" style="font-size:11px;padding:4px 8px" onclick="deleteEvent('${ev.event_id}')">삭제</button>
+      </div>
+    </div>`).join('');
+}
+
+function openAddEventModal() {
+  _editingEventId = null;
+  document.getElementById('event-modal-title').textContent = '일정 추가';
+  document.getElementById('event-title').value = '';
+  document.getElementById('event-date').value = _selectedCalDate || todayStr();
+  document.getElementById('event-memo').value = '';
+  openModal('event-modal');
+}
+
+function submitEvent() {
+  const title = document.getElementById('event-title').value.trim();
+  if (!title) { showToast('제목을 입력해주세요'); return; }
+  const data = {
+    title,
+    start_date: document.getElementById('event-date').value,
+    category: document.getElementById('event-category').value,
+    memo: document.getElementById('event-memo').value,
+    is_all_day: true,
+    member_scope: '전체',
+    created_by: 'M001'
+  };
+  google.script.run
+    .withSuccessHandler(result => {
+      if (result && result.success) {
+        closeModal('event-modal');
+        showToast('일정이 추가되었습니다');
+        loadCalendar();
+      } else {
+        showToast((result && result.error) || '저장 실패');
+      }
+    })
+    .withFailureHandler(() => showToast('오류가 발생했습니다'))
+    .addEvent(data);
+}
+
+function deleteEvent(event_id) {
+  if (!confirm('일정을 삭제하시겠습니까?')) return;
+  google.script.run
+    .withSuccessHandler(result => {
+      if (result && result.success) {
+        showToast('삭제했습니다');
+        loadCalendar();
+      } else {
+        showToast((result && result.error) || '삭제 실패');
+      }
+    })
+    .withFailureHandler(() => showToast('오류가 발생했습니다'))
+    .removeEvent(event_id);
+}
+</script>

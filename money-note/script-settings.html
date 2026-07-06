@@ -1,0 +1,22 @@
+<script>
+function showChangePinModal() {
+  document.getElementById('new-pin').value = '';
+  openModal('pin-modal');
+}
+
+function saveNewPin() {
+  const pin = document.getElementById('new-pin').value;
+  if (!/^\d{4}$/.test(pin)) { showToast('PIN은 숫자 4자리여야 합니다'); return; }
+  google.script.run
+    .withSuccessHandler(result => {
+      if (result && result.success) {
+        closeModal('pin-modal');
+        showToast('PIN이 변경되었습니다');
+      } else {
+        showToast((result && result.error) || '변경 실패');
+      }
+    })
+    .withFailureHandler(() => showToast('오류가 발생했습니다'))
+    .setAppConfig('PIN_CODE', pin);
+}
+</script>
