@@ -234,8 +234,12 @@ function getAppConfig(key) {
  * @returns {Object} {success, data: null}
  */
 function setAppConfig(key, value) {
-  setConfig(key, value);
-  return successResponse(null);
+  try {
+    setConfig(key, value);
+    return successResponse(null);
+  } catch (e) {
+    return errorResponse(e.message);
+  }
 }
 
 /**

@@ -29,7 +29,7 @@ function pinDelete() {
 function verifyPin(pin) {
   google.script.run
     .withSuccessHandler(result => {
-      if (result && result.success && result.data === pin) {
+      if (result && result.success && String(result.data) === pin) {
         STATE.pin = pin;
         document.getElementById('auth-screen').style.display = 'none';
         document.getElementById('app').classList.add('visible');

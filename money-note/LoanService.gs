@@ -18,6 +18,7 @@ function addLoan(data) {
     const principal = parseAmount(data.principal);
     if (principal <= 0) return errorResponse('대출 원금은 0보다 커야 합니다');
 
+    const now = formatDateTime();
     const loan = {
       loan_id: generateId(LOAN_PREFIX),
       member: data.member,
@@ -29,8 +30,8 @@ function addLoan(data) {
       end_date: data.end_date || '',
       is_active: true,
       memo: data.memo || '',
-      created_at: formatDateTime(),
-      updated_at: formatDateTime(),
+      created_at: now,
+      updated_at: now,
       is_deleted: false
     };
 
