@@ -19,6 +19,7 @@ export function useLoans() {
     queryKey: ['loans'],
     queryFn: () => gasPost<Loan[]>('getLoans'),
     staleTime: 0,
+    gcTime: 0,
   })
 }
 

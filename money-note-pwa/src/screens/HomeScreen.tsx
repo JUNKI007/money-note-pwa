@@ -98,7 +98,7 @@ export function HomeScreen() {
                       </div>
                       <AmountText
                         amount={tx.amount}
-                        type={tx.flow_type === '플러스' ? 'income' : 'expense'}
+                        type={tx.flow_type === '플러스' ? 'income' : tx.flow_type === '마이너스' ? 'expense' : 'neutral'}
                         showSign
                         className="text-sm"
                       />

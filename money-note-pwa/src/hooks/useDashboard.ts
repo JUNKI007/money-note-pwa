@@ -29,5 +29,6 @@ export function useDashboard(yearMonth: string) {
     queryKey: ['dashboard', yearMonth],
     queryFn: () => gasPost<DashboardData>('getDashboard', { yearMonth }),
     staleTime: 0,
+    gcTime: 0,
   })
 }

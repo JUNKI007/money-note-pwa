@@ -14,6 +14,7 @@ export function useTransactions(filter: TransactionFilter = {}) {
     queryKey: ['transactions', filter],
     queryFn: () => gasPost<Transaction[]>('getTransactions', filter as Record<string, unknown>),
     staleTime: 0,
+    gcTime: 0,
   })
 }
 

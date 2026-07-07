@@ -15,6 +15,7 @@ export function useSavingGoals() {
     queryKey: ['savings'],
     queryFn: () => gasPost<SavingGoal[]>('getSavingGoals'),
     staleTime: 0,
+    gcTime: 0,
   })
 }
 

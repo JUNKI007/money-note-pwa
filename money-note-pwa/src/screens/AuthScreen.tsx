@@ -21,6 +21,7 @@ export function AuthScreen() {
     setPin(next)
     setError(false)
     if (next.length >= 4) {
+      setPin('')
       setLoading(true)
       try {
         const result = await gasPost<boolean>('verifyPin', { pin: next })
