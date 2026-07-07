@@ -21,7 +21,9 @@ export function SettingsScreen() {
   const [loanSheet, setLoanSheet] = useState(false)
   const [savingSheet, setSavingSheet] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const [gasUrl, setGasUrl] = useState(import.meta.env.VITE_GAS_URL ?? '')
+  const [gasUrl, setGasUrl] = useState(
+    localStorage.getItem('GAS_URL_OVERRIDE') || (import.meta.env.VITE_GAS_URL as string) || ''
+  )
 
   const [loanForm, setLoanForm] = useState({
     name: '', bank: '', principal: '', interest_rate: '', monthly_payment: '',
@@ -49,27 +51,37 @@ export function SettingsScreen() {
   }
 
   const handleAddLoan = async () => {
-    await addLoan.mutateAsync({
-      name: loanForm.name,
-      bank: loanForm.bank,
-      principal: Number(loanForm.principal),
-      interest_rate: Number(loanForm.interest_rate),
-      monthly_payment: Number(loanForm.monthly_payment),
-      start_date: loanForm.start_date,
-      end_date: loanForm.end_date,
-    })
-    setLoanSheet(false)
-    refetchLoans()
+    if (!loanForm.name) return
+    try {
+      await addLoan.mutateAsync({
+        name: loanForm.name,
+        bank: loanForm.bank,
+        principal: Number(loanForm.principal),
+        interest_rate: Number(loanForm.interest_rate),
+        monthly_payment: Number(loanForm.monthly_payment),
+        start_date: loanForm.start_date,
+        end_date: loanForm.end_date,
+      })
+      setLoanSheet(false)
+      refetchLoans()
+    } catch (e) {
+      alert('저장 실패: ' + (e as Error).message)
+    }
   }
 
   const handleAddSaving = async () => {
-    await addSaving.mutateAsync({
-      name: savingForm.name,
-      target_amount: Number(savingForm.target_amount),
-      target_date: savingForm.target_date,
-    })
-    setSavingSheet(false)
-    refetchSavings()
+    if (!savingForm.name) return
+    try {
+      await addSaving.mutateAsync({
+        name: savingForm.name,
+        target_amount: Number(savingForm.target_amount),
+        target_date: savingForm.target_date,
+      })
+      setSavingSheet(false)
+      refetchSavings()
+    } catch (e) {
+      alert('저장 실패: ' + (e as Error).message)
+    }
   }
 
   const activeLoans = (loans ?? []).filter((l) => l.is_active)

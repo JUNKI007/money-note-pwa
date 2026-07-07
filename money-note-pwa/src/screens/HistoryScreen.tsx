@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import dayjs from 'dayjs'
+import 'dayjs/locale/ko'
+dayjs.locale('ko')
 import { useTransactions, useDeleteTransaction } from '@/hooks/useTransactions'
 import { useAppStore } from '@/store/appStore'
 import { AmountText } from '@/components/ui/AmountText'
