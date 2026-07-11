@@ -24,7 +24,7 @@ function getDashboardData(yearMonth) {
 
     // TRANSACTIONS 시트 전체 로드 (삭제 제외)
     const allTransactions = getAllRows('TRANSACTIONS');
-    const thisMonthTx = allTransactions.filter(r => String(r.date).startsWith(ym));
+    const thisMonthTx = allTransactions.filter(r => _dateToYM(r.date) === ym);
 
     // 이번 달 수입/소비/자산이동
     const income    = _sumByTypes(thisMonthTx, INCOME_TYPES);
@@ -83,7 +83,7 @@ function _sumByTypes(rows, types) {
 function _sumByTypesInRange(rows, types, startDate, endDate) {
   return rows
     .filter(r => {
-      const d = String(r.date).substring(0, 10); // 'YYYY-MM-DD'만 비교
+      const d = _dateToStr(r.date);
       return types.includes(r.transaction_type) && d >= startDate && d <= endDate;
     })
     .reduce((sum, r) => sum + (parseAmount(r.amount) || 0), 0);

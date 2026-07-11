@@ -5,11 +5,14 @@ export interface DashboardData {
   yearMonth: string
   income: number
   expense: number
+  assetMove: number
   netSaving: number
-  balance: number
-  weeklyExpenses: { week: string; amount: number }[]
-  topCategories: { category: string; amount: number }[]
-  recentTransactions: Transaction[]
+  thisWeekExpense: number
+  lastWeekExpense: number
+  weeklyDiff: number
+  totalLoanBalance: number
+  totalSaved: number
+  categoryExpense: Record<string, number>
 }
 
 export interface Transaction {

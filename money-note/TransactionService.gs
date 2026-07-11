@@ -2,6 +2,18 @@
 // TransactionService.gs - 거래 입력/조회/삭제
 // ============================================================
 
+// Date 객체 또는 문자열을 'YYYY-MM' 형식으로 변환
+function _dateToYM(d) {
+  if (d instanceof Date) return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM');
+  return String(d).slice(0, 7);
+}
+
+// Date 객체 또는 문자열을 'YYYY-MM-DD' 문자열로 변환 (정렬용)
+function _dateToStr(d) {
+  if (d instanceof Date) return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return String(d).slice(0, 10);
+}
+
 // flow_type → 기본 transaction_type 매핑
 const FLOW_TYPE_DEFAULTS = {
   '플러스':        '수입',
@@ -109,7 +121,7 @@ function getTransactions(filters) {
     const f = filters || {};
 
     if (f.yearMonth) {
-      rows = rows.filter(r => String(r.date).startsWith(f.yearMonth));
+      rows = rows.filter(r => _dateToYM(r.date) === f.yearMonth);
     }
     if (f.member) {
       rows = rows.filter(r => r.member === f.member);
@@ -123,9 +135,9 @@ function getTransactions(filters) {
 
     // 날짜 내림차순, 같은 날이면 created_at 내림차순
     rows.sort((a, b) => {
-      const dateDiff = String(b.date).localeCompare(String(a.date));
+      const dateDiff = _dateToStr(b.date).localeCompare(_dateToStr(a.date));
       if (dateDiff !== 0) return dateDiff;
-      return String(b.created_at).localeCompare(String(a.created_at));
+      return _dateToStr(b.created_at).localeCompare(_dateToStr(a.created_at));
     });
 
     return successResponse(rows);
