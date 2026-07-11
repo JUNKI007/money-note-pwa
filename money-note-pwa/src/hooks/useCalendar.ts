@@ -3,12 +3,12 @@ import { gasPost } from '@/api/client'
 
 export interface CalendarEvent {
   id: string
-  date: string
+  event_id: string
+  start_date: string
   title: string
-  description: string
+  memo: string
   color: string
   linked_amount: number | null
-  linked_transaction_id: string
 }
 
 export function useCalendarEvents(yearMonth: string) {

@@ -28,7 +28,7 @@ export function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [form, setForm] = useState({ title: '', description: '', color: EVENT_COLORS[0], linked_amount: '' })
+  const [form, setForm] = useState({ title: '', memo: '', color: EVENT_COLORS[0], linked_amount: '' })
 
   const firstDay = dayjs(selectedMonth + '-01')
   const daysInMonth = firstDay.daysInMonth()
@@ -38,23 +38,23 @@ export function CalendarScreen() {
 
   const eventsOnDate = (d: number) => {
     const dateStr = `${selectedMonth}-${String(d).padStart(2, '0')}`
-    return (events ?? []).filter((e) => e.date === dateStr)
+    return (events ?? []).filter((e) => e.start_date === dateStr)
   }
 
   const openAdd = (d: number) => {
     const dateStr = `${selectedMonth}-${String(d).padStart(2, '0')}`
     setSelectedDate(dateStr)
     setEditEvent(null)
-    setForm({ title: '', description: '', color: EVENT_COLORS[0], linked_amount: '' })
+    setForm({ title: '', memo: '', color: EVENT_COLORS[0], linked_amount: '' })
     setSheetOpen(true)
   }
 
   const openEdit = (ev: CalendarEvent) => {
     setEditEvent(ev)
-    setSelectedDate(ev.date)
+    setSelectedDate(ev.start_date)
     setForm({
       title: ev.title,
-      description: ev.description,
+      memo: ev.memo,
       color: ev.color,
       linked_amount: ev.linked_amount != null ? String(ev.linked_amount) : '',
     })
@@ -64,11 +64,12 @@ export function CalendarScreen() {
   const handleSave = async () => {
     if (!form.title || !selectedDate) return
     const payload = {
-      date: selectedDate,
+      start_date: selectedDate,
       title: form.title,
-      description: form.description,
+      memo: form.memo,
       color: form.color,
       linked_amount: form.linked_amount ? Number(form.linked_amount) : null,
+      created_by: '가족',
     }
     if (editEvent) {
       await updateEvent.mutateAsync({ ...payload, id: editEvent.id })
@@ -178,8 +179,8 @@ export function CalendarScreen() {
               <label className="text-xs text-text-sub mb-1 block">설명 (선택)</label>
               <input
                 type="text"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                value={form.memo}
+                onChange={(e) => setForm((f) => ({ ...f, memo: e.target.value }))}
                 className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary"
                 placeholder="설명"
               />

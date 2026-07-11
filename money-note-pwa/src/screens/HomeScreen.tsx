@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, PiggyBank, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, PiggyBank } from 'lucide-react'
 import dayjs from 'dayjs'
 import {
   BarChart, Bar, XAxis, ResponsiveContainer, Cell,
@@ -17,7 +17,7 @@ function Skeleton({ className = '' }: { className?: string }) {
 
 export function HomeScreen() {
   const { selectedMonth, setSelectedMonth } = useAppStore()
-  const { data, isLoading, isFetching, refetch } = useDashboard(selectedMonth)
+  const { data, isLoading } = useDashboard(selectedMonth)
 
   const prevMonth = () => setSelectedMonth(dayjs(selectedMonth).subtract(1, 'month').format('YYYY-MM'))
   const nextMonth = () => {
@@ -46,19 +46,9 @@ export function HomeScreen() {
         <button onClick={prevMonth} className="p-2 text-text-sub active:text-text-primary">
           <ChevronLeft size={20} />
         </button>
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-bold text-text-primary">
-            {dayjs(selectedMonth).format('YYYY년 M월')}
-          </span>
-          <motion.button
-            onClick={() => refetch()}
-            animate={{ rotate: isFetching ? 360 : 0 }}
-            transition={{ repeat: isFetching ? Infinity : 0, duration: 0.8, ease: 'linear' }}
-            className="p-1 text-text-sub"
-          >
-            <RefreshCw size={15} />
-          </motion.button>
-        </div>
+        <span className="text-lg font-bold text-text-primary">
+          {dayjs(selectedMonth).format('YYYY년 M월')}
+        </span>
         <button
           onClick={nextMonth}
           className={`p-2 ${isCurrentMonth ? 'opacity-20' : 'text-text-sub active:text-text-primary'}`}
