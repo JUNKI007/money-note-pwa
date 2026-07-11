@@ -15,8 +15,8 @@ export function useCalendarEvents(yearMonth: string) {
   return useQuery({
     queryKey: ['calendar', yearMonth],
     queryFn: () => gasPost<CalendarEvent[]>('getCalendarEvents', { yearMonth }),
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 60_000,
+    gcTime: 300_000,
   })
 }
 

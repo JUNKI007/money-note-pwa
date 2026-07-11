@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import dayjs from 'dayjs'
 import { useSaveTransaction } from '@/hooks/useTransactions'
+import { useAddRecurring } from '@/hooks/useRecurring'
 import { useLoans } from '@/hooks/useLoans'
 import { useSavingGoals } from '@/hooks/useSavings'
 import { useAppStore } from '@/store/appStore'
@@ -28,9 +29,12 @@ export function InputScreen() {
   const [memo, setMemo] = useState('')
   const [loanId, setLoanId] = useState('')
   const [savingGoalId, setSavingGoalId] = useState('')
+  const [isRecurring, setIsRecurring] = useState(false)
+  const [dayOfMonth, setDayOfMonth] = useState('1')
   const [success, setSuccess] = useState(false)
 
   const saveTx = useSaveTransaction()
+  const addRecurring = useAddRecurring()
   const { data: loans } = useLoans()
   const { data: savingGoals } = useSavingGoals()
 
@@ -51,6 +55,19 @@ export function InputScreen() {
         ...(category === '대출상환' && loanId ? { loan_id: loanId } : {}),
         ...(['적금','비상금저축'].includes(category) && savingGoalId ? { saving_goal_id: savingGoalId } : {}),
       })
+
+      if (isRecurring) {
+        await addRecurring.mutateAsync({
+          flow_type: flowType,
+          category,
+          member,
+          detail,
+          amount: Number(amount),
+          memo,
+          day_of_month: Number(dayOfMonth),
+        })
+      }
+
       setSuccess(true)
       setTimeout(() => {
         setSuccess(false)
@@ -60,6 +77,7 @@ export function InputScreen() {
         setMemo('')
         setLoanId('')
         setSavingGoalId('')
+        setIsRecurring(false)
         setActiveTab('내역')
       }, 800)
     } catch (e) {
@@ -74,7 +92,7 @@ export function InputScreen() {
   }
 
   return (
-    <div className="px-4 pt-6 pb-4 space-y-4">
+    <div className="px-4 pt-4 pb-4 space-y-4">
       <h1 className="text-xl font-bold text-text-primary">거래 입력</h1>
 
       {/* Flow type tabs */}
@@ -211,6 +229,39 @@ export function InputScreen() {
             className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-gray-300"
           />
         </div>
+
+        {/* Recurring toggle */}
+        <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+          <div>
+            <p className="text-sm font-medium text-text-primary">정기 거래로 등록</p>
+            <p className="text-xs text-text-sub">매월 자동으로 추가할 수 있습니다</p>
+          </div>
+          <button
+            className={`w-11 h-6 rounded-full transition-colors relative ${isRecurring ? 'bg-blue-main' : 'bg-gray-200'}`}
+            onClick={() => setIsRecurring((v) => !v)}
+          >
+            <div
+              className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform ${
+                isRecurring ? 'translate-x-5' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </div>
+
+        {isRecurring && (
+          <div>
+            <label className="text-xs text-text-sub mb-1 block">매월 결제일</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min="1"
+              max="28"
+              value={dayOfMonth}
+              onChange={(e) => setDayOfMonth(e.target.value)}
+              className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary"
+            />
+          </div>
+        )}
       </div>
 
       <AnimatePresence>

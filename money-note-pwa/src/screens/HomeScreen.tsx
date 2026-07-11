@@ -2,7 +2,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import dayjs from 'dayjs'
 import { BarChart, Bar, XAxis, ResponsiveContainer, Cell, Tooltip, PieChart, Pie } from 'recharts'
-import { useDashboard } from '@/hooks/useDashboard'
+import { useDashboard, useMonthlyTrend } from '@/hooks/useDashboard'
+import { useBudgets } from '@/hooks/useBudget'
 import { useAppStore } from '@/store/appStore'
 import { AmountText } from '@/components/ui/AmountText'
 
@@ -21,6 +22,8 @@ export function HomeScreen() {
   const { data, isLoading } = useDashboard(selectedMonth)
   const prevMonthStr = dayjs(selectedMonth).subtract(1, 'month').format('YYYY-MM')
   const { data: prevData } = useDashboard(prevMonthStr)
+  const { data: trend } = useMonthlyTrend(6)
+  const { data: budgets } = useBudgets()
 
   const isCurrentMonth = selectedMonth >= dayjs().format('YYYY-MM')
 
@@ -39,6 +42,12 @@ export function HomeScreen() {
         { name: '이번주', amount: data.thisWeekExpense, color: '#6F8FAF' },
       ]
     : []
+
+  const trendData = (trend ?? []).map((t) => ({
+    name: dayjs(t.yearMonth).format('M월'),
+    income: t.income,
+    expense: t.expense,
+  }))
 
   return (
     <div className="px-4 pt-4 pb-4 space-y-3">
@@ -114,7 +123,6 @@ export function HomeScreen() {
         >
           <p className="text-sm font-bold text-text-primary mb-4">지출 카테고리</p>
 
-          {/* Centered donut chart */}
           <div className="flex justify-center mb-5">
             <PieChart width={160} height={160}>
               <Pie
@@ -139,12 +147,13 @@ export function HomeScreen() {
             </PieChart>
           </div>
 
-          {/* Category list */}
           <div className="space-y-3">
             {categoryData.map((d) => {
               const pct = totalExpense > 0 ? d.amount / totalExpense : 0
               const prevAmt = (prevData?.categoryExpense as Record<string, number> | undefined)?.[d.name] ?? 0
               const diff = d.amount - prevAmt
+              const budget = budgets?.[d.name]
+              const budgetPct = budget ? Math.min(100, (d.amount / budget) * 100) : null
               return (
                 <div key={d.name}>
                   <div className="flex items-center justify-between mb-1">
@@ -154,30 +163,76 @@ export function HomeScreen() {
                     </div>
                     <div className="flex items-center gap-2">
                       {prevData && diff !== 0 && (
-                        <span
-                          className={`text-[10px] ${diff > 0 ? 'text-expense' : 'text-income'}`}
-                        >
+                        <span className={`text-[10px] ${diff > 0 ? 'text-expense' : 'text-income'}`}>
                           {diff > 0 ? '▲' : '▼'} {fmt(Math.abs(diff))}
                         </span>
                       )}
                       <span className="text-xs font-semibold text-text-primary">{fmt(d.amount)}</span>
+                      {budget && (
+                        <span className="text-[10px] text-gray-400">/{fmt(budget)}</span>
+                      )}
                     </div>
                   </div>
                   <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${Math.min(100, pct * 100)}%`,
-                        backgroundColor: d.color,
-                      }}
-                    />
+                    {budgetPct !== null ? (
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${budgetPct}%`,
+                          backgroundColor: budgetPct >= 90 ? '#D64545' : d.color,
+                        }}
+                      />
+                    ) : (
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${Math.min(100, pct * 100)}%`, backgroundColor: d.color }}
+                      />
+                    )}
                   </div>
+                  {budget && (
+                    <p className={`text-[10px] mt-0.5 ${budgetPct! >= 100 ? 'text-expense font-semibold' : 'text-gray-400'}`}>
+                      예산 {Math.round(budgetPct!)}% 사용
+                    </p>
+                  )}
                 </div>
               )
             })}
           </div>
         </motion.div>
       ) : null}
+
+      {/* 6-month trend */}
+      {trendData.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
+        >
+          <p className="text-sm font-bold text-text-primary mb-3">6개월 추이</p>
+          <ResponsiveContainer width="100%" height={120}>
+            <BarChart data={trendData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }} barCategoryGap="30%">
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+              <Tooltip
+                formatter={(v: number, name: string) => [fmt(v), name === 'income' ? '수입' : '지출']}
+                contentStyle={{ borderRadius: 12, border: 'none', fontSize: 12 }}
+              />
+              <Bar dataKey="income" fill="#2F9E73" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="expense" fill="#D64545" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex items-center gap-3 mt-2 justify-center">
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-income" />
+              <span className="text-[10px] text-gray-400">수입</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-expense" />
+              <span className="text-[10px] text-gray-400">지출</span>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Weekly comparison */}
       {isLoading ? (

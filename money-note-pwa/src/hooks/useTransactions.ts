@@ -13,8 +13,8 @@ export function useTransactions(filter: TransactionFilter = {}) {
   return useQuery({
     queryKey: ['transactions', filter],
     queryFn: () => gasPost<Transaction[]>('getTransactions', filter as Record<string, unknown>),
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 60_000,
+    gcTime: 300_000,
   })
 }
 
@@ -23,6 +23,18 @@ export function useSaveTransaction() {
   return useMutation({
     mutationFn: (data: Record<string, unknown>) =>
       gasPost<Transaction>('saveTransaction', data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transactions'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useUpdateTransaction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) =>
+      gasPost<Transaction>('updateTransaction', data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['transactions'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })

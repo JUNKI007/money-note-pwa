@@ -1,5 +1,5 @@
 // ============================================================
-// TransactionService.gs - 거래 입력/조회/삭제
+// TransactionService.gs - 거래 입력/조회/수정/삭제
 // ============================================================
 
 // Date 객체 또는 문자열을 'YYYY-MM' 형식으로 변환
@@ -143,6 +143,43 @@ function getTransactions(filters) {
     return successResponse(rows);
   } catch (e) {
     return errorResponse('거래 조회 오류: ' + e.message);
+  }
+}
+
+/**
+ * 거래 수정 (변경 필드만 업데이트)
+ *
+ * @param {string} transactionId
+ * @param {Object} updates - 변경할 필드들
+ * @returns {{ success: boolean, data?: Object, error?: string }}
+ */
+function updateTransaction(transactionId, updates) {
+  try {
+    if (!transactionId) return errorResponse('transaction_id가 필요합니다.');
+
+    const row = findRowBy('TRANSACTIONS', 'transaction_id', transactionId);
+    if (!row) return errorResponse('거래를 찾을 수 없습니다: ' + transactionId);
+
+    const allowed = ['date', 'member', 'flow_type', 'category', 'detail', 'amount', 'memo'];
+    const patch = {};
+    allowed.forEach(function(k) {
+      if (updates[k] !== undefined) patch[k] = updates[k];
+    });
+
+    // flow_type 또는 category 변경 시 transaction_type 재결정
+    if (patch.flow_type || patch.category) {
+      const newFlowType = patch.flow_type || row.flow_type;
+      const newCategory = patch.category || row.category;
+      patch.transaction_type = resolveTransactionType(newFlowType, newCategory);
+    }
+
+    patch.updated_at = formatDateTime(new Date());
+    updateRow('TRANSACTIONS', row._rowIndex, patch);
+
+    Logger.log('거래 수정: ' + transactionId);
+    return successResponse(Object.assign({}, row, patch));
+  } catch (e) {
+    return errorResponse('거래 수정 오류: ' + e.message);
   }
 }
 

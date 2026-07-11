@@ -75,6 +75,18 @@ function _route(action, p) {
     case 'getCalendarEvents':    return getCalendarEvents(p);
     case 'updateCalendarEvent':  return updateCalendarEvent(p.event_id, p);
     case 'deleteCalendarEvent':  return deleteCalendarEvent(p.id);
+    // 거래 수정
+    case 'updateTransaction':    return updateTransaction(p.id, p);
+    // 월별 추이
+    case 'getMonthlyTrend':      return getMonthlyTrend(p.months);
+    // 예산
+    case 'getBudgets':           return getBudgets();
+    case 'setBudget':            return setBudget(p.category, p.amount);
+    // 정기 거래
+    case 'getRecurrings':        return getRecurrings();
+    case 'addRecurring':         return addRecurring(p);
+    case 'deleteRecurring':      return deleteRecurring(p.id);
+    case 'applyRecurring':       return applyRecurring(p.yearMonth);
     // 설정
     case 'getAppConfig':         return getAppConfig(p.key);
     case 'setAppConfig':         return setAppConfig(p.key, p.value);

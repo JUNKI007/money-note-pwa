@@ -66,6 +66,36 @@ function getDashboardData(yearMonth) {
 }
 
 /**
+ * 최근 N개월 수입/지출 추이 반환
+ *
+ * @param {number} months - 반환할 개월 수 (기본 6)
+ * @returns {{ success: boolean, data?: Array }}
+ */
+function getMonthlyTrend(months) {
+  try {
+    const n = months || 6;
+    const allTransactions = getAllRows('TRANSACTIONS');
+    const result = [];
+    for (var i = n - 1; i >= 0; i--) {
+      var d = new Date();
+      d.setDate(1);
+      d.setMonth(d.getMonth() - i);
+      var ym = Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM');
+      var txs = allTransactions.filter(function(r) { return _dateToYM(r.date) === ym; });
+      result.push({
+        yearMonth: ym,
+        income: _sumByTypes(txs, INCOME_TYPES),
+        expense: _sumByTypes(txs, EXPENSE_TYPES),
+        assetMove: _sumByTypes(txs, ASSET_MOVE_TYPES)
+      });
+    }
+    return successResponse(result);
+  } catch (e) {
+    return errorResponse('월별 추이 계산 오류: ' + e.message);
+  }
+}
+
+/**
  * 지정된 transaction_type 목록으로 rows에서 amount 합산
  * @private
  */
