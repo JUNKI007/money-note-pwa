@@ -73,7 +73,7 @@ function _route(action, p) {
     // 캘린더
     case 'addCalendarEvent':     return addCalendarEvent(p);
     case 'getCalendarEvents':    return getCalendarEvents(p);
-    case 'updateCalendarEvent':  return updateCalendarEvent(p);
+    case 'updateCalendarEvent':  return updateCalendarEvent(p.event_id, p);
     case 'deleteCalendarEvent':  return deleteCalendarEvent(p.id);
     // 설정
     case 'getAppConfig':         return getAppConfig(p.key);

@@ -2,9 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { gasPost } from '@/api/client'
 
 export interface CalendarEvent {
-  id: string
   event_id: string
   start_date: string
+  end_date: string
   title: string
   memo: string
   color: string
@@ -41,7 +41,7 @@ export function useUpdateCalendarEvent() {
 export function useDeleteCalendarEvent() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => gasPost('deleteCalendarEvent', { id }),
+    mutationFn: (eventId: string) => gasPost('deleteCalendarEvent', { id: eventId }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['calendar'] }),
   })
 }

@@ -104,10 +104,14 @@ function getCalendarEvents(filters) {
     filters = filters || {};
     let rows = SheetService.getAllRows('CALENDAR_EVENTS');
 
-    // 연월 필터 (start_date 기준)
+    // 연월 필터 (start_date~end_date 범위가 해당 월과 겹치는 이벤트 포함)
     if (filters.yearMonth) {
+      const monthStart = filters.yearMonth + '-01';
+      const monthEnd = filters.yearMonth + '-31';
       rows = rows.filter(function(r) {
-        return r.start_date && r.start_date.startsWith(filters.yearMonth);
+        const sd = _dateToStr(r.start_date);
+        const ed = _dateToStr(r.end_date || r.start_date);
+        return sd <= monthEnd && ed >= monthStart;
       });
     }
 
