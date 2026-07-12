@@ -30,9 +30,11 @@ export function Prefetcher() {
     prefetch(['recurrings'], () => gasPost('getRecurrings'))
     prefetch(['monthlyTrend', 6], () => gasPost('getMonthlyTrend', { months: 6 }))
     prefetch(['fixedExpenses'], () => gasPost('getFixedExpenses'))
+    prefetch(['installments'], () => gasPost('getInstallments'))
 
-    // 현재 달 고정지출 자동 적용 (GAS에서 미래 달 적용 금지 + 중복 스킵 처리)
+    // 현재 달 고정지출 + 할부 자동 적용 (GAS에서 미래 달 적용 금지 + 중복 스킵 처리)
     gasPost('applyFixedExpenses', { yearMonth: ym }).catch(() => {})
+    gasPost('applyInstallments', { yearMonth: ym }).catch(() => {})
   }, []) // 마운트 1회만 실행
 
   return null

@@ -8,11 +8,13 @@ import {
   useDeactivateSavingGoal,
 } from '@/hooks/useSavings'
 import { useLoans, useAddLoan, useDeactivateLoan } from '@/hooks/useLoans'
+import { useInstallments, useDeactivateInstallment } from '@/hooks/useInstallments'
 import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 
 const MEMBERS = ['남편', '아내', '공동']
 const REPAYMENT_TYPES = ['이자전용', '원금+이자'] as const
+type SavingsTab = '저축' | '할부' | '대출'
 
 function fmt(n: number) {
   return n.toLocaleString('ko-KR') + '원'
@@ -26,15 +28,18 @@ function pctBar(current: number, target: number) {
 export function SavingsScreen() {
   const { data: savings } = useSavingGoals()
   const { data: loans } = useLoans()
+  const { data: installments } = useInstallments()
   const addSaving = useAddSavingGoal()
   const updateSaving = useUpdateSavingGoal()
   const deactivateSaving = useDeactivateSavingGoal()
   const addLoan = useAddLoan()
   const deactivateLoanMut = useDeactivateLoan()
+  const deactivateInst = useDeactivateInstallment()
 
+  const [activeTab, setActiveTab] = useState<SavingsTab>('저축')
   const [savingSheet, setSavingSheet] = useState(false)
   const [loanSheet, setLoanSheet] = useState(false)
-  const [depositSheet, setDepositSheet] = useState<string | null>(null) // saving goal id
+  const [depositSheet, setDepositSheet] = useState<string | null>(null)
   const [depositAmount, setDepositAmount] = useState('')
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null)
 
@@ -59,8 +64,11 @@ export function SavingsScreen() {
 
   const activeGoals = (savings ?? []).filter((g) => g.is_active)
   const activeLoans = (loans ?? []).filter((l) => l.is_active)
+  const activeInsts = (installments ?? []).filter((i) => i.is_active && i.remaining_months > 0)
   const totalSaved = activeGoals.reduce((s, g) => s + g.current_amount, 0)
   const totalLoan = activeLoans.reduce((s, l) => s + (l.balance ?? l.principal), 0)
+  const totalInstallRemain = activeInsts.reduce((s, i) => s + i.remaining_amount, 0)
+  const thisMonthInstall = activeInsts.reduce((s, i) => s + i.monthly_amount, 0)
 
   const handleAddSaving = async () => {
     if (!savingForm.name || !savingForm.target_amount) return
@@ -112,33 +120,134 @@ export function SavingsScreen() {
       <h1 className="text-lg font-bold text-text-primary">저축 · 대출 관리</h1>
 
       {/* 요약 카드 */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-          <div className="flex items-center gap-1.5 mb-1">
-            <PiggyBank size={14} className="text-income" />
-            <p className="text-[11px] text-gray-400">총 저축</p>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100">
+          <div className="flex items-center gap-1 mb-1">
+            <PiggyBank size={12} className="text-income" />
+            <p className="text-[10px] text-gray-400">총 저축</p>
           </div>
-          <p className="text-base font-bold text-income">{fmt(totalSaved)}</p>
+          <p className="text-sm font-bold text-income">{fmt(totalSaved)}</p>
         </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-          <div className="flex items-center gap-1.5 mb-1">
-            <CreditCard size={14} className="text-expense" />
-            <p className="text-[11px] text-gray-400">총 대출잔액</p>
+        <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100">
+          <div className="flex items-center gap-1 mb-1">
+            <CreditCard size={12} className="text-expense" />
+            <p className="text-[10px] text-gray-400">총 대출</p>
           </div>
-          <p className="text-base font-bold text-expense">{fmt(totalLoan)}</p>
+          <p className="text-sm font-bold text-expense">{fmt(totalLoan)}</p>
+        </div>
+        <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100">
+          <p className="text-[10px] text-gray-400 mb-1">할부 잔액</p>
+          <p className="text-sm font-bold text-orange-500">{fmt(totalInstallRemain)}</p>
+          {thisMonthInstall > 0 && (
+            <p className="text-[9px] text-gray-400">이달 {fmt(thisMonthInstall)}</p>
+          )}
         </div>
       </div>
 
       {/* 순자산 */}
       <div className="bg-gradient-to-r from-blue-deep to-blue-main rounded-2xl p-4 shadow-sm">
-        <p className="text-[11px] text-blue-100 mb-1">순자산 (저축 - 대출)</p>
-        <p className={`text-xl font-bold ${totalSaved - totalLoan >= 0 ? 'text-white' : 'text-red-200'}`}>
-          {totalSaved - totalLoan >= 0 ? '+' : ''}{fmt(totalSaved - totalLoan)}
+        <p className="text-[11px] text-blue-100 mb-1">순자산 (저축 - 대출 - 할부잔액)</p>
+        <p className={`text-xl font-bold ${totalSaved - totalLoan - totalInstallRemain >= 0 ? 'text-white' : 'text-red-200'}`}>
+          {totalSaved - totalLoan - totalInstallRemain >= 0 ? '+' : ''}{fmt(totalSaved - totalLoan - totalInstallRemain)}
         </p>
       </div>
 
+      {/* 탭 네비게이션 */}
+      <div className="flex gap-2">
+        {(['저축', '할부', '대출'] as SavingsTab[]).map((t) => (
+          <button
+            key={t}
+            onClick={() => setActiveTab(t)}
+            className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${
+              activeTab === t ? 'bg-blue-deep text-white' : 'bg-card text-text-sub'
+            }`}
+          >
+            {t}
+            {t === '할부' && activeInsts.length > 0 && (
+              <span className="ml-1 text-[9px] bg-orange-400 text-white rounded-full px-1">
+                {activeInsts.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ── 할부 섹션 ── */}
+      {activeTab === '할부' && (
+        <div>
+          {activeInsts.length === 0 ? (
+            <div className="bg-white rounded-2xl p-6 text-center border border-gray-100">
+              <p className="text-sm text-gray-400">진행 중인 할부가 없습니다</p>
+              <p className="text-xs text-gray-300 mt-1">거래 입력 시 할부 옵션을 사용해보세요</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {activeInsts.map((inst) => {
+                const pct = (inst.paid_months / inst.total_months) * 100
+                return (
+                  <div key={inst.installment_id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <p className="text-sm font-bold text-text-primary">{inst.detail}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {inst.member} · {dayjs(inst.purchase_date).format('YYYY.MM.DD')} 구매
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => deactivateInst.mutate(inst.installment_id)}
+                        className="p-1.5 text-gray-300 active:text-expense"
+                        title="완납 처리"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                      <div className="bg-bg-app rounded-xl py-2">
+                        <p className="text-[10px] text-gray-400">총금액</p>
+                        <p className="text-xs font-bold text-text-primary">{fmt(inst.total_amount)}</p>
+                      </div>
+                      <div className="bg-orange-50 rounded-xl py-2">
+                        <p className="text-[10px] text-orange-400">월 납입액</p>
+                        <p className="text-xs font-bold text-orange-500">{fmt(inst.monthly_amount)}</p>
+                      </div>
+                      <div className="bg-bg-app rounded-xl py-2">
+                        <p className="text-[10px] text-gray-400">잔여</p>
+                        <p className="text-xs font-bold text-expense">{fmt(inst.remaining_amount)}</p>
+                      </div>
+                    </div>
+
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-1">
+                      <div
+                        className="h-full rounded-full bg-orange-400 transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-400">
+                      <span>{inst.paid_months}회 납입 완료</span>
+                      <span>잔여 {inst.remaining_months}회 ({Math.round(100 - pct)}%)</span>
+                    </div>
+                  </div>
+                )
+              })}
+
+              <div className="bg-orange-50 rounded-2xl p-4">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-gray-500">이달 총 할부 납입액</span>
+                  <span className="font-bold text-orange-500">{fmt(thisMonthInstall)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">총 잔여 할부액</span>
+                  <span className="font-bold text-expense">{fmt(totalInstallRemain)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── 적금 목표 섹션 ── */}
-      <div>
+      {activeTab === '저축' && <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-text-primary">적금 · 저축 목표</h2>
           <button
@@ -212,10 +321,10 @@ export function SavingsScreen() {
             })}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* ── 대출 섹션 ── */}
-      <div>
+      {activeTab === '대출' && <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-text-primary">대출 목록</h2>
           <button
@@ -330,7 +439,7 @@ export function SavingsScreen() {
             })}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* ── 저축 목표 추가 시트 ── */}
       <BottomSheet isOpen={savingSheet} onClose={() => setSavingSheet(false)} title="저축 목표 추가">

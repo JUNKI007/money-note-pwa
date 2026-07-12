@@ -61,6 +61,11 @@ function _route(action, p) {
     case 'getTransactions':      return getTransactions(p);
     case 'deleteTransaction':    return deleteTransaction(p.id);
     case 'bulkSaveTransactions': return bulkSaveTransactions(p.transactions);
+    // 할부
+    case 'addInstallment':       return addInstallment(p);
+    case 'getInstallments':      return getInstallments();
+    case 'applyInstallments':    return applyInstallments(p.yearMonth);
+    case 'deactivateInstallment':return deactivateInstallment(p.id);
     // 대출
     case 'addLoan':              return addLoan(p);
     case 'getLoans':             return getLoans();

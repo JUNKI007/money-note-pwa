@@ -7,6 +7,7 @@ import { useDashboard, useMonthlyTrend } from '@/hooks/useDashboard'
 import { useBudgets } from '@/hooks/useBudget'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useSavingGoals } from '@/hooks/useSavings'
+import { useInstallments } from '@/hooks/useInstallments'
 import { useAppStore } from '@/store/appStore'
 
 const CAT_COLORS = ['#6F8FAF', '#2F9E73', '#F59E0B', '#8B5CF6', '#EC4899', '#D64545', '#14B8A6', '#F97316']
@@ -112,6 +113,7 @@ export function HomeScreen() {
   const { data: budgets } = useBudgets()
   const { data: transactions } = useTransactions({ yearMonth: selectedMonth })
   const { data: savingGoals } = useSavingGoals()
+  const { data: installments } = useInstallments()
 
   const isCurrentMonth = selectedMonth >= dayjs().format('YYYY-MM')
 
@@ -151,6 +153,11 @@ export function HomeScreen() {
 
   // 활성 적금 목표
   const activeGoals = (savingGoals ?? []).filter((g) => g.is_active)
+
+  // 할부 요약
+  const activeInstallments = (installments ?? []).filter((i) => i.is_active && i.remaining_months > 0)
+  const thisMonthInstallmentAmt = activeInstallments.reduce((s, i) => s + i.monthly_amount, 0)
+  const totalInstallmentRemain = activeInstallments.reduce((s, i) => s + i.remaining_amount, 0)
 
   return (
     <div className="px-4 pt-4 pb-4 space-y-3">
@@ -264,6 +271,57 @@ export function HomeScreen() {
             </motion.div>
           )}
         </div>
+      )}
+
+      {/* 할부 요약 */}
+      {activeInstallments.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.035 }}
+          className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold text-text-primary">진행 중인 할부</p>
+            <div className="text-right">
+              <p className="text-xs text-gray-400">이달 부담액</p>
+              <p className="text-sm font-bold text-expense">{fmt(thisMonthInstallmentAmt)}</p>
+            </div>
+          </div>
+          <div className="space-y-2.5">
+            {activeInstallments.map((inst) => {
+              const pct = ((inst.paid_months / inst.total_months) * 100)
+              return (
+                <div key={inst.installment_id}>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-medium text-text-primary truncate block">{inst.detail}</span>
+                      <span className="text-[10px] text-gray-400">
+                        {inst.paid_months}/{inst.total_months}회 완료 · 잔여 {inst.remaining_months}회
+                      </span>
+                    </div>
+                    <div className="text-right ml-2 shrink-0">
+                      <p className="text-xs font-semibold text-expense">{fmt(inst.monthly_amount)}/월</p>
+                      <p className="text-[10px] text-gray-400">잔액 {fmt(inst.remaining_amount)}</p>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-orange-400 transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {totalInstallmentRemain > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-50 flex justify-between text-xs">
+              <span className="text-gray-400">총 잔여 할부액</span>
+              <span className="font-bold text-expense">{fmt(totalInstallmentRemain)}</span>
+            </div>
+          )}
+        </motion.div>
       )}
 
       {/* 적금 목표 진행률 */}

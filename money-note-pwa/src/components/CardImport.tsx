@@ -11,12 +11,13 @@ const MEMBERS = ['남편', '아내', '공동']
 
 interface ParsedRow {
   id: string
-  date: string       // YYYY-MM-DD
-  detail: string     // 가맹점명
+  date: string
+  detail: string
   amount: number
   member: string
   selected: boolean
-  installment: string // 일시불/할부
+  installmentType: '일시불' | '할부'
+  installmentMonths: number // 할부 개월수 (일시불이면 0)
 }
 
 // 삼성카드 xlsx 파싱: 두번째 시트, 1행=헤더
@@ -35,13 +36,14 @@ function parseSamsungCard(file: File): Promise<ParsedRow[]> {
         // 헤더 행 제외, 빈 행 제외
         const result: ParsedRow[] = rows
           .slice(1)
-          .filter((r) => r[2] && r[4] && r[5]) // 날짜, 가맹점, 금액 있어야
+          .filter((r) => r[2] && r[4] && r[5])
           .map((r, i) => {
-            const rawDate = String(r[2]).trim() // '2026.07.12'
+            const rawDate = String(r[2]).trim()
             const date = rawDate.replace(/\./g, '-')
             const detail = String(r[4]).trim()
             const amount = Number(r[5]) || 0
-            const installment = String(r[6] ?? '').trim()
+            const instType: '할부' | '일시불' = String(r[6] ?? '').includes('할부') ? '할부' : '일시불'
+            const instMonths = instType === '할부' ? (parseInt(String(r[7] ?? '0')) || 0) : 0
             return {
               id: `import_${i}`,
               date,
@@ -49,7 +51,8 @@ function parseSamsungCard(file: File): Promise<ParsedRow[]> {
               amount,
               member: MEMBERS[0],
               selected: true,
-              installment,
+              installmentType: instType,
+              installmentMonths: instMonths,
             }
           })
           .filter((r) => r.amount > 0 && r.date.match(/^\d{4}-\d{2}-\d{2}$/))
@@ -116,19 +119,37 @@ export function CardImport() {
     setProgress(0)
 
     try {
-      // GAS bulkSaveTransactions 사용 (한 번에 배치)
-      const txList = selected.map((r) => ({
-        date: r.date,
-        member: r.member,
-        flow_type: '마이너스',
-        category: '', // 사용자가 나중에 채움
-        detail: r.detail,
-        amount: r.amount,
-        memo: `[카드가져오기] ${r.installment}`,
-        transaction_type: '소비',
-      }))
+      const normalRows = selected.filter((r) => r.installmentType === '일시불')
+      const installRows = selected.filter((r) => r.installmentType === '할부' && r.installmentMonths >= 2)
 
-      await gasPost('bulkSaveTransactions', { transactions: txList })
+      // 일시불 → 일괄 거래 등록
+      if (normalRows.length > 0) {
+        const txList = normalRows.map((r) => ({
+          date: r.date,
+          member: r.member,
+          flow_type: '마이너스',
+          category: '',
+          detail: r.detail,
+          amount: r.amount,
+          memo: '[카드가져오기]',
+          transaction_type: '소비',
+        }))
+        await gasPost('bulkSaveTransactions', { transactions: txList })
+      }
+
+      // 할부 → 할부 원장에 등록
+      for (const r of installRows) {
+        await gasPost('addInstallment', {
+          purchase_date: r.date,
+          member: r.member,
+          detail: r.detail,
+          category: '',
+          total_amount: r.amount,
+          monthly_amount: Math.round(r.amount / r.installmentMonths),
+          total_months: r.installmentMonths,
+          memo: '[카드가져오기]',
+        })
+      }
 
       // 캐시 무효화
       qc.invalidateQueries({ queryKey: ['transactions'] })
@@ -183,7 +204,7 @@ export function CardImport() {
             <p className="text-3xl mb-3">✅</p>
             <p className="text-sm font-bold text-text-primary">{selectedCount}건 가져오기 완료</p>
             <p className="text-xs text-gray-400 mt-1">
-              내역 탭에서 카테고리를 설정해주세요
+              할부 건은 저축 탭 → 할부에서, 일시불은 내역 탭에서 카테고리를 설정해주세요
             </p>
             <Button
               fullWidth
@@ -253,8 +274,10 @@ export function CardImport() {
                     <p className="text-xs font-medium text-text-primary truncate">{r.detail}</p>
                     <p className="text-[10px] text-gray-400">
                       {dayjs(r.date).format('M/D')}
-                      {r.installment && r.installment !== '일시불' && (
-                        <span className="ml-1 text-blue-main">{r.installment}</span>
+                      {r.installmentType === '할부' && r.installmentMonths > 0 ? (
+                        <span className="ml-1 text-orange-500 font-medium">{r.installmentMonths}개월 할부</span>
+                      ) : (
+                        <span className="ml-1 text-gray-300">일시불</span>
                       )}
                     </p>
                   </div>
