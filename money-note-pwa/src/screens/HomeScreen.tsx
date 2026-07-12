@@ -8,6 +8,7 @@ import { useLifeBudget } from '@/hooks/useLifeBudget'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useSavingGoals } from '@/hooks/useSavings'
 import { useInstallments } from '@/hooks/useInstallments'
+import { useLoans } from '@/hooks/useLoans'
 import { useAppStore } from '@/store/appStore'
 
 const CAT_COLORS = ['#6F8FAF', '#2F9E73', '#F59E0B', '#8B5CF6', '#EC4899', '#D64545', '#14B8A6', '#F97316']
@@ -107,6 +108,7 @@ export function HomeScreen() {
   const { data: transactions } = useTransactions({ yearMonth: selectedMonth })
   const { data: savingGoals } = useSavingGoals()
   const { data: installments } = useInstallments()
+  const { data: loans } = useLoans()
   const isCurrentMonth = selectedMonth >= dayjs().format('YYYY-MM')
 
   const categoryData = data?.categoryExpense
@@ -117,9 +119,6 @@ export function HomeScreen() {
     : []
 
   const totalExpense = categoryData.reduce((s, d) => s + d.amount, 0)
-
-  // 순자산 계산
-  const netAsset = (data?.totalSaved ?? 0) - (data?.totalLoanBalance ?? 0)
 
   // 생활비 예산 계산 (선택된 카테고리 지출 합산)
   const livingBudgetLimit = lifeBudget?.limit ?? 0
@@ -156,6 +155,19 @@ export function HomeScreen() {
   const activeInstallments = (installments ?? []).filter((i) => i.is_active && i.remaining_months > 0)
   const thisMonthInstallmentAmt = activeInstallments.reduce((s, i) => s + i.monthly_amount, 0)
   const totalInstallmentRemain = activeInstallments.reduce((s, i) => s + i.remaining_amount, 0)
+
+  // 대출 요약
+  const activeLoans = (loans ?? []).filter((l) => l.is_active)
+
+  // 이달 저축 납입 체크 (이달 이동·저축·상환 거래 기반)
+  const thisMonthSavingTxMemos = useMemo(() => {
+    const ym = selectedMonth
+    return new Set(
+      (transactions ?? [])
+        .filter((tx) => tx.flow_type === '이동·저축·상환' && tx.date?.slice(0, 7) === ym)
+        .map((tx) => tx.memo ?? '')
+    )
+  }, [transactions, selectedMonth])
 
 
   return (
@@ -220,7 +232,7 @@ export function HomeScreen() {
         </motion.div>
       ) : null}
 
-      {/* 순자산 + 생활비 잔여 */}
+      {/* 총 저축 + 생활비/대출잔액 */}
       {!isLoading && data && (
         <div className="grid grid-cols-2 gap-3">
           <motion.div
@@ -229,11 +241,9 @@ export function HomeScreen() {
             transition={{ delay: 0.03 }}
             className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
           >
-            <p className="text-[11px] text-gray-400 mb-1">순자산</p>
-            <p className={`text-base font-bold ${netAsset >= 0 ? 'text-income' : 'text-expense'}`}>
-              {netAsset >= 0 ? '+' : ''}{fmt(netAsset)}
-            </p>
-            <p className="text-[9px] text-gray-300 mt-1">저축 - 대출잔액</p>
+            <p className="text-[11px] text-gray-400 mb-1">총 저축액</p>
+            <p className="text-base font-bold text-income">{fmt(data.totalSaved ?? 0)}</p>
+            <p className="text-[9px] text-gray-300 mt-1">저축 목표 합산</p>
           </motion.div>
           {livingBudgetLimit > 0 ? (
             <motion.div
@@ -266,7 +276,7 @@ export function HomeScreen() {
             >
               <p className="text-[11px] text-gray-400 mb-1">총 대출잔액</p>
               <p className="text-base font-bold text-expense">{fmt(data.totalLoanBalance)}</p>
-              <p className="text-[9px] text-gray-300 mt-1">총 저축 {fmt(data.totalSaved)}</p>
+              <p className="text-[9px] text-gray-300 mt-1">대출 {activeLoans.length}건</p>
             </motion.div>
           )}
         </div>
@@ -473,7 +483,7 @@ export function HomeScreen() {
         </motion.div>
       )}
 
-      {/* 7. 적금 목표 진행률 */}
+      {/* 7. 저축현황 */}
       {activeGoals.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -481,22 +491,33 @@ export function HomeScreen() {
           transition={{ delay: 0.05 }}
           className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
         >
-          <p className="text-sm font-bold text-text-primary mb-3">적금 목표</p>
+          <p className="text-sm font-bold text-text-primary mb-3">저축현황</p>
           <div className="space-y-3">
             {activeGoals.map((g) => {
               const pct = g.has_target && g.target_amount > 0
                 ? Math.min(100, (g.current_amount / g.target_amount) * 100)
                 : null
+              // 이달 납입 여부: [저축:id:YYYY-MM] 태그 또는 단순 [저축:id] 태그 확인
+              const paidThisMonth = g.monthly_amount > 0 && Array.from(thisMonthSavingTxMemos).some(
+                (m) => m.includes(`[저축:${g.id}`)
+              )
+              const needsPay = g.monthly_amount > 0 && !paidThisMonth && selectedMonth === dayjs().format('YYYY-MM')
               return (
                 <div key={g.id}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs font-medium text-text-primary">{g.name}</span>
                       {g.monthly_amount > 0 && (
-                        <span className="ml-1.5 text-[10px] text-blue-main">월 {fmt(g.monthly_amount)}</span>
+                        <span className="text-[10px] text-blue-main">월 {fmt(g.monthly_amount)}</span>
+                      )}
+                      {needsPay && (
+                        <span className="text-[9px] bg-red-50 text-expense px-1.5 py-0.5 rounded-full font-medium">미납입</span>
+                      )}
+                      {paidThisMonth && (
+                        <span className="text-[9px] bg-green-50 text-income px-1.5 py-0.5 rounded-full font-medium">납입완료</span>
                       )}
                     </div>
-                    <span className="text-xs font-bold text-blue-deep">{fmt(g.current_amount)}</span>
+                    <span className="text-xs font-bold text-blue-deep shrink-0 ml-1">{fmt(g.current_amount)}</span>
                   </div>
                   {pct !== null ? (
                     <>
@@ -518,6 +539,53 @@ export function HomeScreen() {
                   ) : (
                     <div className="h-1.5 bg-blue-50 rounded-full" />
                   )}
+                </div>
+              )
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* 8. 대출 현황 */}
+      {activeLoans.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.055 }}
+          className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
+        >
+          <p className="text-sm font-bold text-text-primary mb-3">대출현황</p>
+          <div className="space-y-3">
+            {activeLoans.map((l) => {
+              const id = l.loan_id ?? l.id
+              const balance = l.balance ?? l.principal
+              const repaidPct = l.principal > 0
+                ? Math.min(100, ((l.principal - balance) / l.principal) * 100)
+                : 0
+              return (
+                <div key={id}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div>
+                      <span className="text-xs font-medium text-text-primary">{l.name}</span>
+                      <span className="ml-1.5 text-[10px] text-gray-400">{l.member}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-bold text-expense">{fmt(balance)}</span>
+                      {l.interest_rate > 0 && (
+                        <p className="text-[9px] text-gray-300">{l.interest_rate}%</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-income transition-all"
+                      style={{ width: `${repaidPct}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-[10px] text-income font-semibold">{Math.round(repaidPct)}% 상환</span>
+                    <span className="text-[10px] text-gray-300">원금 {fmt(l.principal)}</span>
+                  </div>
                 </div>
               )
             })}

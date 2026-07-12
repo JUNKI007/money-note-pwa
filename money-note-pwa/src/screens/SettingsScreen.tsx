@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Plus, LogOut, Check } from 'lucide-react'
-import { useSavingGoals, useAddSavingGoal, useDeactivateSavingGoal } from '@/hooks/useSavings'
 import { useLifeBudget, useSetLifeBudget } from '@/hooks/useLifeBudget'
 import { MINUS_CATEGORY_LABELS } from '@/components/ui/CategoryPicker'
 import { useAuthStore } from '@/store/authStore'
@@ -8,28 +7,18 @@ import { gasPost } from '@/api/client'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
-import { AmountText } from '@/components/ui/AmountText'
 
 export function SettingsScreen() {
   const lock = useAuthStore((s) => s.lock)
-  const { data: savings } = useSavingGoals()
   const { data: lifeBudget } = useLifeBudget()
-  const addSaving = useAddSavingGoal()
-  const deactivateSaving = useDeactivateSavingGoal()
   const setLifeBudget = useSetLifeBudget()
 
-  const [savingSheet, setSavingSheet] = useState(false)
   const [lifeBudgetSheet, setLifeBudgetSheet] = useState(false)
   const [lifeBudgetForm, setLifeBudgetForm] = useState<{ categories: string[]; limit: string }>({ categories: [], limit: '' })
   const [syncing, setSyncing] = useState(false)
   const [gasUrl, setGasUrl] = useState(
     localStorage.getItem('GAS_URL_OVERRIDE') || (import.meta.env.VITE_GAS_URL as string) || ''
   )
-
-  const [savingHasTarget, setSavingHasTarget] = useState(false)
-  const [savingForm, setSavingForm] = useState({
-    name: '', target_amount: '', monthly_amount: '', target_date: '',
-  })
 
   const handleSaveGasUrl = () => {
     localStorage.setItem('GAS_URL_OVERRIDE', gasUrl)
@@ -46,20 +35,6 @@ export function SettingsScreen() {
     } finally {
       setSyncing(false)
     }
-  }
-
-  const handleAddSaving = async () => {
-    if (!savingForm.name) return
-    await addSaving.mutateAsync({
-      name: savingForm.name,
-      has_target: savingHasTarget,
-      target_amount: savingHasTarget ? Number(savingForm.target_amount) || 0 : 0,
-      monthly_amount: Number(savingForm.monthly_amount) || 0,
-      target_date: savingHasTarget ? savingForm.target_date : '',
-    })
-    setSavingForm({ name: '', target_amount: '', monthly_amount: '', target_date: '' })
-    setSavingHasTarget(false)
-    setSavingSheet(false)
   }
 
   const handleSetLifeBudget = async () => {
@@ -83,8 +58,6 @@ export function SettingsScreen() {
     }))
   }
 
-  const activeSavings = (savings ?? []).filter((s) => s.is_active)
-
   return (
     <div className="px-4 pt-4 pb-4 space-y-3">
       <h1 className="text-xl font-bold text-text-primary">설정</h1>
@@ -107,44 +80,6 @@ export function SettingsScreen() {
               ))}
             </div>
             <p className="text-sm font-bold text-text-primary">월 한도: {lifeBudget.limit.toLocaleString('ko-KR')}원</p>
-          </div>
-        )}
-      </Card>
-
-      {/* Savings */}
-      <Card>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-semibold text-text-primary">저축 목표</p>
-          <button onClick={() => setSavingSheet(true)} className="p-1 text-blue-main">
-            <Plus size={18} />
-          </button>
-        </div>
-        {activeSavings.length === 0 ? (
-          <p className="text-xs text-text-sub text-center py-2">등록된 저축 목표가 없습니다</p>
-        ) : (
-          <div className="space-y-2">
-            {activeSavings.map((s) => {
-              const pct = s.target_amount > 0 ? Math.min(100, (s.current_amount / s.target_amount) * 100) : 0
-              return (
-                <div key={s.id}>
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium text-text-primary">{s.name}</p>
-                    <button className="text-[10px] text-text-sub" onClick={() => deactivateSaving.mutate(s.id)}>
-                      비활성화
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-bg-app rounded-full h-1.5">
-                      <div className="bg-income h-1.5 rounded-full" style={{ width: `${pct}%` }} />
-                    </div>
-                    <span className="text-xs text-text-sub">{Math.round(pct)}%</span>
-                  </div>
-                  <p className="text-xs text-text-sub mt-0.5">
-                    <AmountText amount={s.current_amount} className="text-xs" /> / <AmountText amount={s.target_amount} className="text-xs" />
-                  </p>
-                </div>
-              )
-            })}
           </div>
         )}
       </Card>
@@ -223,64 +158,6 @@ export function SettingsScreen() {
             disabled={lifeBudgetForm.categories.length === 0 || !lifeBudgetForm.limit || setLifeBudget.isPending}
           >
             {setLifeBudget.isPending ? '저장 중...' : '저장'}
-          </Button>
-        </div>
-      </BottomSheet>
-
-      {/* Add Saving Sheet */}
-      <BottomSheet isOpen={savingSheet} onClose={() => setSavingSheet(false)} title="저축 목표 추가">
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs text-text-sub mb-1 block">목표명</label>
-            <input type="text" value={savingForm.name}
-              onChange={(e) => setSavingForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="예: 결혼적금, 비상금"
-              className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary" />
-          </div>
-          <div>
-            <label className="text-xs text-text-sub mb-1.5 block">목표 설정</label>
-            <div className="flex gap-2">
-              {[false, true].map((v) => (
-                <button key={String(v)}
-                  onClick={() => setSavingHasTarget(v)}
-                  className={`flex-1 py-2 rounded-xl text-xs font-medium transition-colors ${
-                    savingHasTarget === v ? 'bg-blue-main text-white' : 'bg-bg-app text-text-sub'
-                  }`}
-                >
-                  {v ? '목표 금액 있음' : '자유 저축'}
-                </button>
-              ))}
-            </div>
-          </div>
-          {savingHasTarget && (
-            <>
-              <div>
-                <label className="text-xs text-text-sub mb-1 block">목표 금액 (원)</label>
-                <input type="number" inputMode="numeric" value={savingForm.target_amount}
-                  onChange={(e) => setSavingForm((f) => ({ ...f, target_amount: e.target.value }))}
-                  placeholder="16000000"
-                  className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary" />
-              </div>
-              <div>
-                <label className="text-xs text-text-sub mb-1 block">목표 날짜 (선택)</label>
-                <input type="month" value={savingForm.target_date.slice(0, 7)}
-                  onChange={(e) => setSavingForm((f) => ({ ...f, target_date: e.target.value + '-01' }))}
-                  className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary" />
-              </div>
-            </>
-          )}
-          <div>
-            <label className="text-xs text-text-sub mb-1 block">월 자동 납입액 (원, 선택)</label>
-            <input type="number" inputMode="numeric" value={savingForm.monthly_amount}
-              onChange={(e) => setSavingForm((f) => ({ ...f, monthly_amount: e.target.value }))}
-              placeholder="매달 1일 자동 차감 금액 (없으면 공란)"
-              className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary" />
-            {savingForm.monthly_amount && (
-              <p className="text-[11px] text-blue-main mt-1">매달 1일 {Number(savingForm.monthly_amount).toLocaleString('ko-KR')}원 자동 납입</p>
-            )}
-          </div>
-          <Button fullWidth onClick={handleAddSaving} disabled={!savingForm.name || addSaving.isPending}>
-            {addSaving.isPending ? '추가 중...' : '저축 목표 추가'}
           </Button>
         </div>
       </BottomSheet>

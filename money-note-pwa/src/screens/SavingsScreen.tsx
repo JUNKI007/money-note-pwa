@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Plus, Trash2, ChevronDown, ChevronUp, CreditCard, PiggyBank, Eye, EyeOff } from 'lucide-react'
 import dayjs from 'dayjs'
 import {
@@ -9,7 +9,7 @@ import {
 } from '@/hooks/useSavings'
 import { useLoans, useAddLoan, useDeactivateLoan } from '@/hooks/useLoans'
 import { useInstallments, useDeactivateInstallment } from '@/hooks/useInstallments'
-import { useSaveTransaction } from '@/hooks/useTransactions'
+import { useSaveTransaction, useTransactions } from '@/hooks/useTransactions'
 import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -61,6 +61,17 @@ export function SavingsScreen() {
   const [confirmInst, setConfirmInst] = useState<string | null>(null)
   const [confirmSaving, setConfirmSaving] = useState<string | null>(null)
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null)
+
+  const thisYM = dayjs().format('YYYY-MM')
+  const { data: thisMonthTxs } = useTransactions({ yearMonth: thisYM, flow_type: '이동·저축·상환' })
+  const paidGoalIds = useMemo(() => {
+    const set = new Set<string>()
+    ;(thisMonthTxs ?? []).forEach((tx) => {
+      const m = (tx.memo ?? '').match(/\[저축:([^\]:]+)/)
+      if (m) set.add(m[1])
+    })
+    return set
+  }, [thisMonthTxs])
 
   const activeGoals = (savings ?? []).filter((g) => g.is_active)
   const activeLoans = (loans ?? []).filter((l) => l.is_active)
@@ -221,6 +232,12 @@ export function SavingsScreen() {
                               월 {fmt(g.monthly_amount)} 자동
                             </span>
                           )}
+                          {g.monthly_amount > 0 && paidGoalIds.has(g.id) && (
+                            <span className="text-[9px] bg-green-50 text-income px-1.5 py-0.5 rounded-full font-medium">이달납입✓</span>
+                          )}
+                          {g.monthly_amount > 0 && !paidGoalIds.has(g.id) && (
+                            <span className="text-[9px] bg-red-50 text-expense px-1.5 py-0.5 rounded-full font-medium">미납입</span>
+                          )}
                         </div>
                         {g.has_target && g.target_date && (
                           <p className="text-[10px] text-gray-400 mt-0.5">
@@ -245,7 +262,7 @@ export function SavingsScreen() {
                         <button
                           onClick={() => {
                             setDepositSheet(g.id)
-                            setDepositAmount('')
+                            setDepositAmount(g.monthly_amount > 0 ? String(g.monthly_amount) : '')
                             setDepositMember('공동')
                             setDepositDate(dayjs().format('YYYY-MM-DD'))
                           }}
