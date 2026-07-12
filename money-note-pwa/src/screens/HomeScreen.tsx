@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import dayjs from 'dayjs'
@@ -30,13 +30,17 @@ function fmtFull(n: number) {
 function MiniCalendar({
   yearMonth,
   dailyExpense,
+  selectedDay,
+  onDayClick,
 }: {
   yearMonth: string
   dailyExpense: Record<string, number>
+  selectedDay: string | null
+  onDayClick: (date: string) => void
 }) {
   const monthStart = dayjs(yearMonth + '-01')
   const daysInMonth = monthStart.daysInMonth()
-  const startDow = monthStart.day() // 0=일
+  const startDow = monthStart.day()
 
   const maxExpense = Math.max(...Object.values(dailyExpense), 1)
 
@@ -49,33 +53,29 @@ function MiniCalendar({
 
   return (
     <div>
-      {/* 요일 헤더 */}
       <div className="grid grid-cols-7 mb-1">
         {DOW.map((d, i) => (
-          <div
-            key={d}
-            className={`text-center text-[10px] font-medium py-1 ${
-              i === 0 ? 'text-expense' : i === 6 ? 'text-blue-main' : 'text-gray-400'
-            }`}
-          >
+          <div key={d} className={`text-center text-[10px] font-medium py-1 ${i === 0 ? 'text-expense' : i === 6 ? 'text-blue-main' : 'text-gray-400'}`}>
             {d}
           </div>
         ))}
       </div>
-      {/* 날짜 셀 */}
       <div className="grid grid-cols-7 gap-y-1">
         {cells.map((day, i) => {
           if (!day) return <div key={`e${i}`} />
           const dateStr = monthStart.date(day).format('YYYY-MM-DD')
           const expense = dailyExpense[dateStr] ?? 0
           const isToday = dateStr === today
+          const isSelected = dateStr === selectedDay
           const intensity = expense > 0 ? Math.min(1, expense / maxExpense) : 0
           const dow = (startDow + day - 1) % 7
           return (
-            <div key={day} className="flex flex-col items-center">
+            <button key={day} className="flex flex-col items-center" onClick={() => onDayClick(dateStr)}>
               <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-medium relative ${
-                  isToday
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-medium ${
+                  isSelected
+                    ? 'bg-orange-400 text-white'
+                    : isToday
                     ? 'bg-blue-deep text-white'
                     : expense > 0
                     ? 'text-text-primary'
@@ -85,18 +85,14 @@ function MiniCalendar({
                     ? 'text-blue-main/60'
                     : 'text-gray-300'
                 }`}
-                style={
-                  expense > 0 && !isToday
-                    ? { backgroundColor: `rgba(214,69,69,${intensity * 0.18})` }
-                    : {}
-                }
+                style={expense > 0 && !isToday && !isSelected ? { backgroundColor: `rgba(214,69,69,${intensity * 0.18})` } : {}}
               >
                 {day}
               </div>
               {expense > 0 && (
                 <span className="text-[8px] text-expense leading-tight mt-0.5">{fmt(expense)}</span>
               )}
-            </div>
+            </button>
           )
         })}
       </div>
@@ -106,6 +102,7 @@ function MiniCalendar({
 
 export function HomeScreen() {
   const { selectedMonth, setSelectedMonth } = useAppStore()
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const { data, isLoading } = useDashboard(selectedMonth)
   const { data: lifeBudget } = useLifeBudget()
   const { data: transactions } = useTransactions({ yearMonth: selectedMonth })
@@ -148,6 +145,12 @@ export function HomeScreen() {
 
   // 활성 적금 목표
   const activeGoals = (savingGoals ?? []).filter((g) => g.is_active)
+
+  // 선택된 날의 거래 목록
+  const selectedDayTxs = useMemo(() => {
+    if (!selectedDay) return []
+    return (transactions ?? []).filter((tx) => tx.date === selectedDay)
+  }, [selectedDay, transactions])
 
   // 할부 요약
   const activeInstallments = (installments ?? []).filter((i) => i.is_active && i.remaining_months > 0)
@@ -367,7 +370,56 @@ export function HomeScreen() {
         className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
       >
         <p className="text-sm font-bold text-text-primary mb-3">일별 지출</p>
-        <MiniCalendar yearMonth={selectedMonth} dailyExpense={dailyExpense} />
+        <MiniCalendar
+          yearMonth={selectedMonth}
+          dailyExpense={dailyExpense}
+          selectedDay={selectedDay}
+          onDayClick={(d) => setSelectedDay((prev) => (prev === d ? null : d))}
+        />
+
+        {/* 선택된 날 거래 목록 */}
+        <AnimatePresence>
+          {selectedDay && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <p className="text-xs font-semibold text-text-sub mb-2">
+                  {dayjs(selectedDay).format('M월 D일 (ddd)')} 거래내역
+                </p>
+                {selectedDayTxs.length === 0 ? (
+                  <p className="text-xs text-gray-300 text-center py-3">거래 내역이 없습니다</p>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedDayTxs.map((tx) => (
+                      <div key={tx.id} className="flex items-center justify-between py-1">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-text-primary truncate">{tx.detail || tx.category}</p>
+                          <p className="text-[10px] text-text-sub">{tx.category} · {tx.member}</p>
+                        </div>
+                        <span className={`text-xs font-semibold ml-2 shrink-0 ${tx.flow_type === '마이너스' ? 'text-expense' : tx.flow_type === '플러스' ? 'text-income' : 'text-blue-main'}`}>
+                          {tx.flow_type === '마이너스' ? '-' : tx.flow_type === '플러스' ? '+' : ''}{fmtFull(tx.amount)}
+                        </span>
+                      </div>
+                    ))}
+                    {selectedDayTxs.some((tx) => tx.flow_type === '마이너스') && (
+                      <div className="flex justify-between pt-2 border-t border-gray-50">
+                        <span className="text-[10px] text-gray-400">일 지출 합계</span>
+                        <span className="text-xs font-bold text-expense">
+                          -{fmtFull(selectedDayTxs.filter((tx) => tx.flow_type === '마이너스').reduce((s, tx) => s + tx.amount, 0))}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {/* 6. 진행 중인 할부 */}
