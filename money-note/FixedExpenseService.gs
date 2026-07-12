@@ -146,7 +146,11 @@ function applyFixedExpenses(yearMonth) {
 
     var applied = 0;
     fixedList.forEach(function(fx) {
-      if (appliedSet[fx.fixed_id]) return; // 중복 스킵
+      if (appliedSet[fx.fixed_id]) {
+        // 거래는 이미 있지만 용돈 입금은 누락됐을 수 있으므로 재확인
+        _tryApplyAllowanceDeposit(fx, yearMonth);
+        return;
+      }
       _applyOneFixedExpense(fx, yearMonth);
       applied++;
     });
@@ -155,6 +159,23 @@ function applyFixedExpenses(yearMonth) {
     return successResponse({ applied: applied });
   } catch (e) {
     return errorResponse('고정지출 적용 오류: ' + e.message);
+  }
+}
+
+/** 고정지출 항목에서 용돈 대상 구성원을 판별해 반환 @private */
+function _getAllowanceMember(fx) {
+  var fxName = fx.name || '';
+  if (fxName.indexOf('정민') !== -1) return '아내';
+  if (fxName.indexOf('준기') !== -1) return '남편';
+  if (fx.category === '용돈' && fx.member && fx.member !== '공동') return fx.member;
+  return null;
+}
+
+/** TRANSACTION이 이미 있을 때 ALLOWANCE 입금이 빠진 경우 보완 @private */
+function _tryApplyAllowanceDeposit(fx, yearMonth) {
+  var member = _getAllowanceMember(fx);
+  if (member) {
+    _applyAllowanceDeposit(Object.assign({}, fx, { member: member }), yearMonth);
   }
 }
 
@@ -170,14 +191,9 @@ function _applyOneFixedExpense(fx, yearMonth) {
     amount:    Number(fx.amount),
     memo:      memo
   });
-  // 이름에 '정민' 또는 '준기' 포함 시 해당 구성원 용돈 입금 자동 생성
-  var fxName = fx.name || '';
-  var allowanceMember = null;
-  if (fxName.indexOf('정민') !== -1) allowanceMember = '아내';
-  else if (fxName.indexOf('준기') !== -1) allowanceMember = '남편';
-  else if (fx.category === '용돈' && fx.member && fx.member !== '공동') allowanceMember = fx.member;
-  if (allowanceMember) {
-    _applyAllowanceDeposit(Object.assign({}, fx, { member: allowanceMember }), yearMonth);
+  var member = _getAllowanceMember(fx);
+  if (member) {
+    _applyAllowanceDeposit(Object.assign({}, fx, { member: member }), yearMonth);
   }
 }
 

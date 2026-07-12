@@ -33,7 +33,12 @@ export function Prefetcher() {
     prefetch(['installments'], () => gasPost('getInstallments'))
 
     // 현재 달 고정지출 + 할부 자동 적용 (GAS에서 미래 달 적용 금지 + 중복 스킵 처리)
-    gasPost('applyFixedExpenses', { yearMonth: ym }).catch(() => {})
+    // 완료 후 allowance 캐시 무효화 (용돈 자동 입금 반영)
+    gasPost('applyFixedExpenses', { yearMonth: ym })
+      .then(() => {
+        qc.invalidateQueries({ queryKey: ['allowance'] }).catch(() => {})
+      })
+      .catch(() => {})
     gasPost('applyInstallments', { yearMonth: ym }).catch(() => {})
   }, []) // 마운트 1회만 실행
 
