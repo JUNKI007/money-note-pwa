@@ -16,7 +16,8 @@ export interface DashboardData {
 }
 
 export interface Transaction {
-  id: string
+  transaction_id: string
+  id: string // transaction_id alias (하위 호환)
   date: string
   member: string
   flow_type: string

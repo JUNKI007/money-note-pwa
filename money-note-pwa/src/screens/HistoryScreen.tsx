@@ -74,7 +74,7 @@ export function HistoryScreen() {
   const handleUpdate = async () => {
     if (!editTx) return
     await updateTx.mutateAsync({
-      id: editTx.id,
+      id: editTx.transaction_id,
       date: editForm.date,
       member: editForm.member,
       flow_type: editForm.flow_type,
@@ -175,7 +175,7 @@ export function HistoryScreen() {
                   <AnimatePresence>
                     {grouped[date]!.map((tx, i) => (
                       <motion.div
-                        key={tx!.id}
+                        key={tx!.transaction_id}
                         layout
                         exit={{ opacity: 0, height: 0 }}
                         className={`flex items-center px-4 py-3 ${i > 0 ? 'border-t border-gray-50' : ''}`}
@@ -198,8 +198,8 @@ export function HistoryScreen() {
                         </button>
                         <motion.button
                           className="p-1.5 text-gray-300 active:text-expense"
-                          onClick={() => handleDelete(tx!.id)}
-                          disabled={deletingId === tx!.id}
+                          onClick={() => handleDelete(tx!.transaction_id)}
+                          disabled={deletingId === tx!.transaction_id}
                           whileTap={{ scale: 0.85 }}
                         >
                           <Trash2 size={14} />
