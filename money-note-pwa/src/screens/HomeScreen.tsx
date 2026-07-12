@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import dayjs from 'dayjs'
 import { Cell, Tooltip, PieChart, Pie } from 'recharts'
 import { useDashboard } from '@/hooks/useDashboard'
@@ -107,9 +107,6 @@ function MiniCalendar({
 export function HomeScreen() {
   const { selectedMonth, setSelectedMonth } = useAppStore()
   const { data, isLoading } = useDashboard(selectedMonth)
-  const prevMonthStr = dayjs(selectedMonth).subtract(1, 'month').format('YYYY-MM')
-  const { data: prevData } = useDashboard(prevMonthStr)
-
   const { data: lifeBudget } = useLifeBudget()
   const { data: transactions } = useTransactions({ yearMonth: selectedMonth })
   const { data: savingGoals } = useSavingGoals()
@@ -285,20 +282,46 @@ export function HomeScreen() {
           <p className="text-sm font-bold text-text-primary mb-4">지출 카테고리</p>
 
           <div className="flex justify-center mb-5">
-            <PieChart width={160} height={160}>
+            <PieChart width={240} height={240}>
+              {/* 3D 그림자 레이어 */}
               <Pie
                 data={categoryData}
                 dataKey="amount"
-                cx={80}
-                cy={80}
-                innerRadius={44}
-                outerRadius={72}
+                cx={120} cy={126}
+                innerRadius={46} outerRadius={76}
                 paddingAngle={2}
-                startAngle={90}
-                endAngle={-270}
+                startAngle={90} endAngle={-270}
+                isAnimationActive={false}
               >
                 {categoryData.map((d, i) => (
-                  <Cell key={i} fill={d.color} />
+                  <Cell key={i} fill={d.color} opacity={0.25} />
+                ))}
+              </Pie>
+              {/* 메인 레이어 */}
+              <Pie
+                data={categoryData}
+                dataKey="amount"
+                cx={120} cy={120}
+                innerRadius={46} outerRadius={76}
+                paddingAngle={2}
+                startAngle={90} endAngle={-270}
+                label={({ cx, cy, midAngle, outerRadius, name, percent }) => {
+                  const RADIAN = Math.PI / 180
+                  const r = (outerRadius as number) + 22
+                  const x = (cx as number) + r * Math.cos(-midAngle * RADIAN)
+                  const y = (cy as number) + r * Math.sin(-midAngle * RADIAN)
+                  if ((percent as number) < 0.04) return null
+                  return (
+                    <text x={x} y={y} textAnchor={x > (cx as number) ? 'start' : 'end'} dominantBaseline="central" fontSize={9} fill="#64748b">
+                      <tspan x={x} dy="-0.5em">{name}</tspan>
+                      <tspan x={x} dy="1.2em" fontWeight="600">{((percent as number) * 100).toFixed(0)}%</tspan>
+                    </text>
+                  )
+                }}
+                labelLine={false}
+              >
+                {categoryData.map((d, i) => (
+                  <Cell key={i} fill={d.color} style={{ filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.18))' }} />
                 ))}
               </Pie>
               <Tooltip
@@ -311,8 +334,6 @@ export function HomeScreen() {
           <div className="space-y-3">
             {categoryData.map((d) => {
               const pct = totalExpense > 0 ? d.amount / totalExpense : 0
-              const prevAmt = (prevData?.categoryExpense as Record<string, number> | undefined)?.[d.name] ?? 0
-              const diff = d.amount - prevAmt
               return (
                 <div key={d.name}>
                   <div className="flex items-center justify-between mb-1">
@@ -321,12 +342,7 @@ export function HomeScreen() {
                       <span className="text-xs font-medium text-text-primary">{d.name}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {prevData && diff !== 0 && (
-                        <span className={`text-[10px] flex items-center gap-0.5 ${diff > 0 ? 'text-expense' : 'text-income'}`}>
-                          {diff > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                          {fmt(Math.abs(diff))}
-                        </span>
-                      )}
+                      <span className="text-[10px] text-gray-400">{(pct * 100).toFixed(0)}%</span>
                       <span className="text-xs font-semibold text-text-primary">{fmtFull(d.amount)}</span>
                     </div>
                   </div>

@@ -12,8 +12,8 @@ const tabs: { id: Tab; icon: React.ElementType; label: string }[] = [
   { id: '홈', icon: Home, label: '홈' },
   { id: '입력', icon: PlusCircle, label: '입력' },
   { id: '내역', icon: List, label: '내역' },
-  { id: '저축', icon: PiggyBank, label: '저축' },
   { id: '용돈', icon: Wallet, label: '용돈' },
+  { id: '저축', icon: PiggyBank, label: '저축' },
   { id: '설정', icon: Settings, label: '설정' },
 ]
 

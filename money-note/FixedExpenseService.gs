@@ -73,10 +73,11 @@ function addFixedExpense(data) {
 /** 고정지출 수정 */
 function updateFixedExpense(id, updates) {
   try {
-    if (!id) return errorResponse('fixed_id가 필요합니다.');
     _ensureFixedSheet();
-    var row = findRowBy('FIXED_EXPENSES', 'fixed_id', id);
-    if (!row) return errorResponse('고정지출을 찾을 수 없습니다: ' + id);
+    var row = id ? findRowBy('FIXED_EXPENSES', 'fixed_id', id) : null;
+    // fixed_id 없는 수동 입력 항목은 name으로 폴백
+    if (!row && updates.name) row = findRowBy('FIXED_EXPENSES', 'name', updates.name);
+    if (!row) return errorResponse('고정지출을 찾을 수 없습니다.');
 
     var allowed = ['name', 'flow_type', 'category', 'member', 'amount', 'memo'];
     var patch = {};
@@ -94,12 +95,13 @@ function updateFixedExpense(id, updates) {
 }
 
 /** 고정지출 비활성화 (soft delete) */
-function deleteFixedExpense(id) {
+function deleteFixedExpense(id, name) {
   try {
-    if (!id) return errorResponse('fixed_id가 필요합니다.');
     _ensureFixedSheet();
-    var row = findRowBy('FIXED_EXPENSES', 'fixed_id', id);
-    if (!row) return errorResponse('고정지출을 찾을 수 없습니다: ' + id);
+    var row = id ? findRowBy('FIXED_EXPENSES', 'fixed_id', id) : null;
+    // fixed_id 없는 수동 입력 항목은 name으로 폴백
+    if (!row && name) row = findRowBy('FIXED_EXPENSES', 'name', name);
+    if (!row) return errorResponse('고정지출을 찾을 수 없습니다.');
     updateRow('FIXED_EXPENSES', row._rowIndex, {
       is_active: false,
       updated_at: formatDateTime(new Date())
@@ -168,9 +170,14 @@ function _applyOneFixedExpense(fx, yearMonth) {
     amount:    Number(fx.amount),
     memo:      memo
   });
-  // 용돈 카테고리일 때 ALLOWANCE 입금 자동 생성
-  if (fx.category === '용돈' && fx.member && fx.member !== '공동') {
-    _applyAllowanceDeposit(fx, yearMonth);
+  // 이름에 '정민' 또는 '준기' 포함 시 해당 구성원 용돈 입금 자동 생성
+  var fxName = fx.name || '';
+  var allowanceMember = null;
+  if (fxName.indexOf('정민') !== -1) allowanceMember = '아내';
+  else if (fxName.indexOf('준기') !== -1) allowanceMember = '남편';
+  else if (fx.category === '용돈' && fx.member && fx.member !== '공동') allowanceMember = fx.member;
+  if (allowanceMember) {
+    _applyAllowanceDeposit(Object.assign({}, fx, { member: allowanceMember }), yearMonth);
   }
 }
 
