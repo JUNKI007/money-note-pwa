@@ -46,14 +46,28 @@ function addInstallment(data) {
       updated_at:     now
     };
 
+    var initialPaid = parseInt(data.initial_paid_months, 10) || 0;
+    if (initialPaid >= totalMonths) initialPaid = totalMonths - 1; // 완납은 불가
+
     _ensureInstSheet();
     appendRow(INST_SHEET, inst);
 
-    // 현재 달 1회차 즉시 적용
-    _applyOneInstallment(inst, currentYM, 1);
-
-    // paid_months = 1 로 업데이트
-    _updatePaidMonths(id, 1);
+    if (initialPaid > 0) {
+      // 이미 납부한 회차 설정 (과거 거래 기록 없이 paid_months만 업데이트)
+      _updatePaidMonths(id, initialPaid);
+      // 이번 달이 다음 납부 달이면 즉시 적용
+      var pDate = new Date(purchaseDate.slice(0, 7) + '-01');
+      pDate.setMonth(pDate.getMonth() + initialPaid);
+      var nextYM = Utilities.formatDate(pDate, Session.getScriptTimeZone(), 'yyyy-MM');
+      if (nextYM === currentYM) {
+        _applyOneInstallment(inst, currentYM, initialPaid + 1);
+        _updatePaidMonths(id, initialPaid + 1);
+      }
+    } else {
+      // 신규 할부: 현재 달 1회차 즉시 적용
+      _applyOneInstallment(inst, currentYM, 1);
+      _updatePaidMonths(id, 1);
+    }
 
     Logger.log('할부 추가: ' + id + ' | ' + data.detail + ' | ' + totalAmount + '원/' + totalMonths + '개월');
     return successResponse(inst);

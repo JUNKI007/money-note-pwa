@@ -85,7 +85,7 @@ function _route(action, p) {
     case 'getFixedExpenses':     return getFixedExpenses();
     case 'addFixedExpense':      return addFixedExpense(p);
     case 'updateFixedExpense':   return updateFixedExpense(p.id, p);
-    case 'deleteFixedExpense':   return deleteFixedExpense(p.id);
+    case 'deleteFixedExpense':   return deleteFixedExpense(p.id, p.name);
     case 'applyFixedExpenses':   return applyFixedExpenses(p.yearMonth);
     // 거래 수정
     case 'updateTransaction':    return updateTransaction(p.id, p);

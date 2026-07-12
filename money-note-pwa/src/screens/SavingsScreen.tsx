@@ -9,6 +9,7 @@ import {
 } from '@/hooks/useSavings'
 import { useLoans, useAddLoan, useDeactivateLoan } from '@/hooks/useLoans'
 import { useInstallments, useDeactivateInstallment } from '@/hooks/useInstallments'
+import { useSaveTransaction } from '@/hooks/useTransactions'
 import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -32,6 +33,7 @@ export function SavingsScreen() {
   const { data: installments } = useInstallments()
   const addSaving = useAddSavingGoal()
   const updateSaving = useUpdateSavingGoal()
+  const saveTx = useSaveTransaction()
   const deactivateSaving = useDeactivateSavingGoal()
   const addLoan = useAddLoan()
   const deactivateLoanMut = useDeactivateLoan()
@@ -42,6 +44,8 @@ export function SavingsScreen() {
   const [loanSheet, setLoanSheet] = useState(false)
   const [depositSheet, setDepositSheet] = useState<string | null>(null)
   const [depositAmount, setDepositAmount] = useState('')
+  const [depositMember, setDepositMember] = useState('공동')
+  const [depositDate, setDepositDate] = useState(dayjs().format('YYYY-MM-DD'))
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null)
   const [confirmInst, setConfirmInst] = useState<string | null>(null)
   const [confirmSaving, setConfirmSaving] = useState<string | null>(null)
@@ -89,10 +93,22 @@ export function SavingsScreen() {
     if (!depositSheet || !depositAmount) return
     const goal = activeGoals.find((g) => g.id === depositSheet)
     if (!goal) return
-    await updateSaving.mutateAsync({
-      id: depositSheet,
-      current_amount: goal.current_amount + Number(depositAmount),
-    })
+    const amt = Number(depositAmount)
+    await Promise.all([
+      updateSaving.mutateAsync({
+        id: depositSheet,
+        current_amount: goal.current_amount + amt,
+      }),
+      saveTx.mutateAsync({
+        date: depositDate,
+        member: depositMember,
+        flow_type: '이동·저축·상환',
+        category: '적금',
+        detail: goal.name,
+        amount: amt,
+        memo: `[저축:${depositSheet}]`,
+      }),
+    ])
     setDepositAmount('')
     setDepositSheet(null)
   }
@@ -285,7 +301,7 @@ export function SavingsScreen() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => { setDepositSheet(g.id); setDepositAmount('') }}
+                        onClick={() => { setDepositSheet(g.id); setDepositAmount(''); setDepositMember('공동'); setDepositDate(dayjs().format('YYYY-MM-DD')) }}
                         className="text-[11px] px-2.5 py-1 bg-blue-50 text-blue-main rounded-full font-medium"
                       >
                         입금
@@ -500,6 +516,31 @@ export function SavingsScreen() {
       >
         <div className="space-y-3">
           <div>
+            <label className="text-xs text-text-sub mb-1 block">날짜</label>
+            <input
+              type="date"
+              value={depositDate}
+              onChange={(e) => setDepositDate(e.target.value)}
+              className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-text-sub mb-1 block">납입자</label>
+            <div className="flex gap-2">
+              {MEMBERS.map((m) => (
+                <button
+                  key={m}
+                  className={`flex-1 py-1.5 rounded-xl text-sm font-medium transition-colors ${
+                    depositMember === m ? 'bg-blue-main text-white' : 'bg-bg-app text-text-sub'
+                  }`}
+                  onClick={() => setDepositMember(m)}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
             <label className="text-xs text-text-sub mb-1 block">입금 금액 (원)</label>
             <input
               type="number"
@@ -510,8 +551,8 @@ export function SavingsScreen() {
               className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary"
             />
           </div>
-          <Button fullWidth onClick={handleDeposit} disabled={updateSaving.isPending}>
-            {updateSaving.isPending ? '처리 중...' : '입금 반영'}
+          <Button fullWidth onClick={handleDeposit} disabled={updateSaving.isPending || saveTx.isPending}>
+            {updateSaving.isPending || saveTx.isPending ? '처리 중...' : '입금 반영'}
           </Button>
         </div>
       </BottomSheet>

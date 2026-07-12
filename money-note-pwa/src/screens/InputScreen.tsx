@@ -53,6 +53,9 @@ export function InputScreen() {
   // 할부 상태
   const [isInstallment, setIsInstallment] = useState(false)
   const [installmentMonths, setInstallmentMonths] = useState(3)
+  const [installmentMonthsCustom, setInstallmentMonthsCustom] = useState('')
+  const [installmentPaidAlready, setInstallmentPaidAlready] = useState('')
+  const [installmentMonthlyDirect, setInstallmentMonthlyDirect] = useState('')
 
   // 고정지출 편집 상태
   const [fixedSheet, setFixedSheet] = useState(false)
@@ -82,14 +85,19 @@ export function InputScreen() {
       // 마이너스 + 할부 선택 시 → 할부 원장에 등록
       if (flowType === '마이너스' && isInstallment) {
         const totalAmt = Number(amount)
+        const finalMonths = installmentMonthsCustom ? Number(installmentMonthsCustom) : installmentMonths
+        const monthlyAmt = installmentMonthlyDirect
+          ? Number(installmentMonthlyDirect)
+          : Math.round(totalAmt / finalMonths)
         await addInstallment.mutateAsync({
           purchase_date: date,
           member,
           detail: detail || category,
           category,
           total_amount: totalAmt,
-          monthly_amount: Math.round(totalAmt / installmentMonths),
-          total_months: installmentMonths,
+          monthly_amount: monthlyAmt,
+          total_months: finalMonths,
+          initial_paid_months: installmentPaidAlready ? Number(installmentPaidAlready) : 0,
           memo,
         })
       } else {
@@ -106,6 +114,9 @@ export function InputScreen() {
         setCategory(''); setDetail(''); setAmount(''); setMemo('')
         setLoanId(''); setSavingGoalId('')
         setIsInstallment(false)
+        setInstallmentMonthsCustom('')
+        setInstallmentPaidAlready('')
+        setInstallmentMonthlyDirect('')
         setActiveTab('내역')
       }, 800)
     } catch (e) {
@@ -466,41 +477,88 @@ export function InputScreen() {
                   <button
                     type="button"
                     onClick={() => setIsInstallment((v) => !v)}
-                    className={`relative w-10 h-5 rounded-full transition-colors ${
-                      isInstallment ? 'bg-blue-main' : 'bg-gray-200'
-                    }`}
+                    className={`relative w-10 h-5 rounded-full transition-colors ${isInstallment ? 'bg-blue-main' : 'bg-gray-200'}`}
                   >
-                    <span
-                      className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                        isInstallment ? 'translate-x-5' : 'translate-x-0.5'
-                      }`}
-                    />
+                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${isInstallment ? 'translate-x-5' : 'translate-x-0.5'}`} />
                   </button>
                 </div>
                 {isInstallment && (
-                  <div className="bg-blue-50 rounded-xl p-3 space-y-2">
-                    <p className="text-xs text-blue-main font-medium">할부 개월수</p>
-                    <div className="flex gap-2 flex-wrap">
-                      {[2, 3, 6, 9, 12, 24, 36].map((m) => (
-                        <button
-                          key={m}
-                          type="button"
-                          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                            installmentMonths === m
-                              ? 'bg-blue-main text-white'
-                              : 'bg-white text-text-sub'
-                          }`}
-                          onClick={() => setInstallmentMonths(m)}
-                        >
-                          {m}개월
-                        </button>
-                      ))}
+                  <div className="bg-blue-50 rounded-xl p-3 space-y-3">
+                    {/* 총 개월수 */}
+                    <div>
+                      <p className="text-xs text-blue-main font-medium mb-1.5">총 개월수</p>
+                      <div className="flex gap-1.5 flex-wrap mb-2">
+                        {[2, 3, 6, 9, 12, 24, 36].map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                              !installmentMonthsCustom && installmentMonths === m
+                                ? 'bg-blue-main text-white'
+                                : 'bg-white text-text-sub'
+                            }`}
+                            onClick={() => { setInstallmentMonths(m); setInstallmentMonthsCustom('') }}
+                          >
+                            {m}개월
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={installmentMonthsCustom}
+                        onChange={(e) => setInstallmentMonthsCustom(e.target.value)}
+                        placeholder="직접 입력 (예: 5개월)"
+                        className="w-full bg-white rounded-xl px-3 py-2 text-xs text-text-primary placeholder:text-gray-300"
+                      />
                     </div>
-                    {amount && !isNaN(Number(amount)) && Number(amount) > 0 && (
-                      <p className="text-xs text-blue-main">
-                        월 {Math.round(Number(amount) / installmentMonths).toLocaleString('ko-KR')}원 × {installmentMonths}개월
-                      </p>
-                    )}
+
+                    {/* 월 납입금 직접 입력 */}
+                    <div>
+                      <p className="text-xs text-blue-main font-medium mb-1.5">월 납입금</p>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={installmentMonthlyDirect}
+                        onChange={(e) => setInstallmentMonthlyDirect(e.target.value)}
+                        placeholder="직접 입력 (공란 시 자동 계산)"
+                        className="w-full bg-white rounded-xl px-3 py-2 text-xs text-text-primary placeholder:text-gray-300"
+                      />
+                    </div>
+
+                    {/* 이미 납부한 회차 */}
+                    <div>
+                      <p className="text-xs text-blue-main font-medium mb-1.5">이미 납부한 회차 (진행 중인 할부)</p>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={installmentPaidAlready}
+                        onChange={(e) => setInstallmentPaidAlready(e.target.value)}
+                        placeholder="0 (신규 할부는 비워두기)"
+                        className="w-full bg-white rounded-xl px-3 py-2 text-xs text-text-primary placeholder:text-gray-300"
+                      />
+                      {installmentPaidAlready && Number(installmentPaidAlready) > 0 && (
+                        <p className="text-[10px] text-blue-500 mt-1">
+                          과거 {installmentPaidAlready}회차는 거래 기록 없이 납부 완료로 처리됩니다
+                        </p>
+                      )}
+                    </div>
+
+                    {/* 요약 */}
+                    {amount && !isNaN(Number(amount)) && Number(amount) > 0 && (() => {
+                      const finalMonths = installmentMonthsCustom ? Number(installmentMonthsCustom) : installmentMonths
+                      const monthlyAmt = installmentMonthlyDirect
+                        ? Number(installmentMonthlyDirect)
+                        : Math.round(Number(amount) / finalMonths)
+                      const paid = Number(installmentPaidAlready) || 0
+                      const remaining = Math.max(0, finalMonths - paid)
+                      return (
+                        <div className="bg-blue-100 rounded-xl px-3 py-2 text-xs text-blue-700 space-y-0.5">
+                          <p>월 {monthlyAmt.toLocaleString('ko-KR')}원 × 총 {finalMonths}개월</p>
+                          {paid > 0 && <p>납부 완료: {paid}회 → 잔여 {remaining}회 ({(remaining * monthlyAmt).toLocaleString('ko-KR')}원)</p>}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
               </div>
