@@ -144,7 +144,7 @@ export function HomeScreen() {
   }, [transactions])
 
   // 활성 적금 목표
-  const activeGoals = (savingGoals ?? []).filter((g) => g.is_active)
+  const activeGoals = (savingGoals ?? []).filter((g) => g.is_active && g.show_on_home)
 
   // 선택된 날의 거래 목록
   const selectedDayTxs = useMemo(() => {
@@ -484,8 +484,9 @@ export function HomeScreen() {
           <p className="text-sm font-bold text-text-primary mb-3">적금 목표</p>
           <div className="space-y-3">
             {activeGoals.map((g) => {
-              const pct = g.target_amount > 0 ? Math.min(100, (g.current_amount / g.target_amount) * 100) : 0
-              const remain = g.target_amount - g.current_amount
+              const pct = g.has_target && g.target_amount > 0
+                ? Math.min(100, (g.current_amount / g.target_amount) * 100)
+                : null
               return (
                 <div key={g.id}>
                   <div className="flex items-center justify-between mb-1.5">
@@ -495,32 +496,28 @@ export function HomeScreen() {
                         <span className="ml-1.5 text-[10px] text-blue-main">월 {fmt(g.monthly_amount)}</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-bold text-blue-deep">{fmt(g.current_amount)}</span>
-                      {g.target_amount > 0 && (
-                        <span className="text-[10px] text-gray-300">/ {fmt(g.target_amount)}</span>
-                      )}
-                    </div>
+                    <span className="text-xs font-bold text-blue-deep">{fmt(g.current_amount)}</span>
                   </div>
-                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-blue-main transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-[10px] text-blue-main font-semibold">{Math.round(pct)}% 달성</span>
-                    <div className="flex items-center gap-2">
-                      {remain > 0 && g.target_amount > 0 && (
-                        <span className="text-[10px] text-gray-300">잔여 {fmt(remain)}</span>
-                      )}
-                      {g.target_date && (
-                        <span className="text-[10px] text-gray-300">
-                          {dayjs(g.target_date).format('YYYY.MM')} 목표
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  {pct !== null ? (
+                    <>
+                      <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-blue-main transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-[10px] text-blue-main font-semibold">{Math.round(pct)}% 달성</span>
+                        <div className="flex items-center gap-2">
+                          {g.target_amount - g.current_amount > 0 && (
+                            <span className="text-[10px] text-gray-300">잔여 {fmt(g.target_amount - g.current_amount)}</span>
+                          )}
+                          {g.target_date && (
+                            <span className="text-[10px] text-gray-300">{dayjs(g.target_date).format('YYYY.MM')} 목표</span>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="h-1.5 bg-blue-50 rounded-full" />
+                  )}
                 </div>
               )
             })}

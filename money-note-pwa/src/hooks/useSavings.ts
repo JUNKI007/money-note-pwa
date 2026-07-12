@@ -4,10 +4,12 @@ import { gasPost } from '@/api/client'
 export interface SavingGoal {
   id: string
   name: string
+  has_target: boolean
   target_amount: number
+  target_date: string
   monthly_amount: number
   current_amount: number
-  target_date: string
+  show_on_home: boolean
   is_active: boolean
   memo?: string
 }
