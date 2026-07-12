@@ -80,7 +80,7 @@ export function InputScreen() {
   const activeLoans = loans?.filter((l) => l.is_active) ?? []
   const activeSavings = savingGoals?.filter((s) => s.is_active) ?? []
   const activeFixed = (fixedExpenses ?? []).filter((f) => f.is_active)
-  const [confirmDeleteFixedId, setConfirmDeleteFixedId] = useState<string | null>(null)
+  const [confirmDeleteFixed, setConfirmDeleteFixed] = useState<{ id: string; name: string } | null>(null)
 
   const handleSubmit = async () => {
     if (!category || !amount || isNaN(Number(amount))) return
@@ -376,7 +376,7 @@ export function InputScreen() {
                   </button>
                   <button
                     className="p-1.5 text-gray-300 active:text-expense"
-                    onClick={() => setConfirmDeleteFixedId(fx.fixed_id)}
+                    onClick={() => setConfirmDeleteFixed({ id: fx.fixed_id, name: fx.name })}
                     disabled={deleteFixed.isPending}
                   >
                     <Trash2 size={14} />
@@ -487,13 +487,13 @@ export function InputScreen() {
           </BottomSheet>
 
           <ConfirmDialog
-            isOpen={!!confirmDeleteFixedId}
+            isOpen={!!confirmDeleteFixed}
             message="고정지출 항목을 삭제하시겠습니까?"
             onConfirm={() => {
-              if (confirmDeleteFixedId) deleteFixed.mutate(confirmDeleteFixedId)
-              setConfirmDeleteFixedId(null)
+              if (confirmDeleteFixed) deleteFixed.mutate({ id: confirmDeleteFixed.id, name: confirmDeleteFixed.name })
+              setConfirmDeleteFixed(null)
             }}
-            onCancel={() => setConfirmDeleteFixedId(null)}
+            onCancel={() => setConfirmDeleteFixed(null)}
           />
         </div>
       ) : (

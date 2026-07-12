@@ -18,12 +18,11 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { MINUS_CATEGORY_LABELS, PLUS_CATEGORY_LABELS } from '@/components/ui/CategoryPicker'
 import type { Transaction } from '@/hooks/useDashboard'
 
-type FlowFilter = '전체' | '플러스' | '마이너스' | '이동·저축·상환'
+type FlowFilter = '전체' | '플러스' | '마이너스'
 
 const CATEGORIES: Record<string, string[]> = {
   '플러스': PLUS_CATEGORY_LABELS,
   '마이너스': MINUS_CATEGORY_LABELS,
-  '이동·저축·상환': ['적금', '비상금저축', '대출상환', '계좌이체'],
 }
 
 const MEMBERS = ['남편', '아내', '공동']
@@ -40,8 +39,8 @@ export function HistoryScreen() {
   const [search, setSearch] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  // 고정지출 연동 삭제: {txId, fixedId}
-  const [confirmFixed, setConfirmFixed] = useState<{ txId: string; fixedId: string } | null>(null)
+  // 고정지출 연동 삭제: {txId, fixedId, fixedName}
+  const [confirmFixed, setConfirmFixed] = useState<{ txId: string; fixedId: string; fixedName: string } | null>(null)
   const [editTx, setEditTx] = useState<Transaction | null>(null)
   const [editForm, setEditForm] = useState({
     date: '', member: '', flow_type: '', category: '', detail: '', amount: '', memo: '',
@@ -65,7 +64,7 @@ export function HistoryScreen() {
   const onTrashClick = (tx: Transaction) => {
     const fixedId = extractFixedId(tx.memo || '')
     if (fixedId) {
-      setConfirmFixed({ txId: tx.transaction_id, fixedId })
+      setConfirmFixed({ txId: tx.transaction_id, fixedId, fixedName: tx.detail || tx.category })
     } else {
       setConfirmDeleteId(tx.transaction_id)
     }
@@ -86,7 +85,7 @@ export function HistoryScreen() {
   const openEdit = (tx: Transaction) => {
     setEditTx(tx)
     setEditForm({
-      date: tx.date,
+      date: dayjs(tx.date).format('YYYY-MM-DD'),
       member: tx.member,
       flow_type: tx.flow_type,
       category: tx.category,
@@ -175,7 +174,7 @@ export function HistoryScreen() {
 
       {/* Flow filter */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar">
-        {(['전체', '플러스', '마이너스', '이동·저축·상환'] as FlowFilter[]).map((f) => (
+        {(['전체', '플러스', '마이너스'] as FlowFilter[]).map((f) => (
           <button
             key={f}
             className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors
@@ -372,7 +371,7 @@ export function HistoryScreen() {
           onClick={async () => {
             if (confirmFixed) {
               await handleDelete(confirmFixed.txId)
-              await deleteFixed.mutateAsync(confirmFixed.fixedId)
+              await deleteFixed.mutateAsync({ id: confirmFixed.fixedId, name: confirmFixed.fixedName })
             }
             setConfirmFixed(null)
           }}
