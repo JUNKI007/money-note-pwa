@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-reac
 import dayjs from 'dayjs'
 import { Cell, Tooltip, PieChart, Pie } from 'recharts'
 import { useDashboard } from '@/hooks/useDashboard'
-import { useBudgets } from '@/hooks/useBudget'
+import { useLifeBudget } from '@/hooks/useLifeBudget'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useSavingGoals } from '@/hooks/useSavings'
 import { useInstallments } from '@/hooks/useInstallments'
@@ -111,7 +111,7 @@ export function HomeScreen() {
   const prevMonthStr = dayjs(selectedMonth).subtract(1, 'month').format('YYYY-MM')
   const { data: prevData } = useDashboard(prevMonthStr)
 
-  const { data: budgets } = useBudgets()
+  const { data: lifeBudget } = useLifeBudget()
   const { data: transactions } = useTransactions({ yearMonth: selectedMonth })
   const { data: savingGoals } = useSavingGoals()
   const { data: installments } = useInstallments()
@@ -131,10 +131,15 @@ export function HomeScreen() {
   // 순자산 계산
   const netAsset = (data?.totalSaved ?? 0) - (data?.totalLoanBalance ?? 0)
 
-  // 생활비 예산 잔여 계산 (카테고리: 생활비 or 식비+카페 등)
-  const livingBudget = budgets?.['생활비'] ?? 0
-  const livingSpent = (data?.categoryExpense as Record<string, number> | undefined)?.['생활비'] ?? 0
-  const livingRemain = livingBudget > 0 ? livingBudget - livingSpent : null
+  // 생활비 예산 계산 (선택된 카테고리 지출 합산)
+  const livingBudgetLimit = lifeBudget?.limit ?? 0
+  const livingSpent = useMemo(() => {
+    if (!lifeBudget?.categories?.length) return 0
+    const catExp = data?.categoryExpense as Record<string, number> | undefined
+    if (!catExp) return 0
+    return lifeBudget.categories.reduce((s, c) => s + (catExp[c] ?? 0), 0)
+  }, [lifeBudget, data?.categoryExpense])
+  const livingRemain = livingBudgetLimit > 0 ? livingBudgetLimit - livingSpent : null
 
   // 일별 지출 집계
   const dailyExpense = useMemo(() => {
@@ -250,7 +255,7 @@ export function HomeScreen() {
             </p>
             <p className="text-[9px] text-gray-300 mt-1">저축 - 대출잔액</p>
           </motion.div>
-          {livingBudget > 0 ? (
+          {livingBudgetLimit > 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -265,12 +270,12 @@ export function HomeScreen() {
                 <div
                   className="h-full rounded-full"
                   style={{
-                    width: `${Math.min(100, (livingSpent / livingBudget) * 100)}%`,
-                    backgroundColor: livingSpent / livingBudget > 0.9 ? '#D64545' : '#2F9E73',
+                    width: `${Math.min(100, (livingSpent / livingBudgetLimit) * 100)}%`,
+                    backgroundColor: livingSpent / livingBudgetLimit > 0.9 ? '#D64545' : '#2F9E73',
                   }}
                 />
               </div>
-              <p className="text-[9px] text-gray-300 mt-1">{fmt(livingSpent)} / {fmt(livingBudget)}</p>
+              <p className="text-[9px] text-gray-300 mt-1">{fmt(livingSpent)} / {fmt(livingBudgetLimit)}</p>
             </motion.div>
           ) : (
             <motion.div
@@ -328,8 +333,6 @@ export function HomeScreen() {
               const pct = totalExpense > 0 ? d.amount / totalExpense : 0
               const prevAmt = (prevData?.categoryExpense as Record<string, number> | undefined)?.[d.name] ?? 0
               const diff = d.amount - prevAmt
-              const budget = budgets?.[d.name]
-              const budgetPct = budget ? Math.min(100, (d.amount / budget) * 100) : null
               return (
                 <div key={d.name}>
                   <div className="flex items-center justify-between mb-1">
@@ -345,32 +348,14 @@ export function HomeScreen() {
                         </span>
                       )}
                       <span className="text-xs font-semibold text-text-primary">{fmtFull(d.amount)}</span>
-                      {budget && (
-                        <span className="text-[10px] text-gray-400">/{fmt(budget)}</span>
-                      )}
                     </div>
                   </div>
                   <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    {budgetPct !== null ? (
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${budgetPct}%`,
-                          backgroundColor: budgetPct >= 90 ? '#D64545' : d.color,
-                        }}
-                      />
-                    ) : (
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${Math.min(100, pct * 100)}%`, backgroundColor: d.color }}
-                      />
-                    )}
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${Math.min(100, pct * 100)}%`, backgroundColor: d.color }}
+                    />
                   </div>
-                  {budget && (
-                    <p className={`text-[10px] mt-0.5 ${budgetPct! >= 100 ? 'text-expense font-semibold' : 'text-gray-400'}`}>
-                      예산 {Math.round(budgetPct!)}% 사용
-                    </p>
-                  )}
                 </div>
               )
             })}

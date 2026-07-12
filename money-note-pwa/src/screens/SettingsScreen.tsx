@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Plus, LogOut, Trash2 } from 'lucide-react'
+import { Plus, LogOut, Trash2, Check } from 'lucide-react'
 import { useLoans, useAddLoan, useDeactivateLoan } from '@/hooks/useLoans'
 import { useSavingGoals, useAddSavingGoal, useDeactivateSavingGoal } from '@/hooks/useSavings'
-import { useBudgets, useSetBudget } from '@/hooks/useBudget'
+import { useLifeBudget, useSetLifeBudget } from '@/hooks/useLifeBudget'
+import { MINUS_CATEGORY_LABELS } from '@/components/ui/CategoryPicker'
 import {
   useRecurrings,
   useAddRecurring,
@@ -19,7 +20,6 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { AmountText } from '@/components/ui/AmountText'
 import dayjs from 'dayjs'
 
-const EXPENSE_CATEGORIES = ['식비', '카페', '쇼핑', '교통', '의료', '문화', '교육', '공과금', '기타소비']
 const FLOW_CATEGORIES: Record<string, string[]> = {
   '마이너스': ['식비', '카페', '쇼핑', '교통', '의료', '문화', '교육', '공과금', '기타소비'],
   '플러스': ['월급', '부수입', '용돈', '환급', '기타수입'],
@@ -32,20 +32,21 @@ export function SettingsScreen() {
   const { selectedMonth } = useAppStore()
   const { data: loans, refetch: refetchLoans } = useLoans()
   const { data: savings, refetch: refetchSavings } = useSavingGoals()
-  const { data: budgets } = useBudgets()
+  const { data: lifeBudget } = useLifeBudget()
   const { data: recurrings } = useRecurrings()
   const addLoan = useAddLoan()
   const deactivateLoan = useDeactivateLoan()
   const addSaving = useAddSavingGoal()
   const deactivateSaving = useDeactivateSavingGoal()
-  const setBudget = useSetBudget()
+  const setLifeBudget = useSetLifeBudget()
   const addRecurring = useAddRecurring()
   const deleteRecurring = useDeleteRecurring()
   const applyRecurring = useApplyRecurring()
 
   const [loanSheet, setLoanSheet] = useState(false)
   const [savingSheet, setSavingSheet] = useState(false)
-  const [budgetSheet, setBudgetSheet] = useState(false)
+  const [lifeBudgetSheet, setLifeBudgetSheet] = useState(false)
+  const [lifeBudgetForm, setLifeBudgetForm] = useState<{ categories: string[]; limit: string }>({ categories: [], limit: '' })
   const [recurringSheet, setRecurringSheet] = useState(false)
   const [confirmDeleteRecurringId, setConfirmDeleteRecurringId] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
@@ -61,7 +62,6 @@ export function SettingsScreen() {
   const [savingForm, setSavingForm] = useState({
     name: '', target_amount: '', target_date: '',
   })
-  const [budgetForm, setBudgetForm] = useState({ category: EXPENSE_CATEGORIES[0], amount: '' })
   const [recurringForm, setRecurringForm] = useState({
     flow_type: '마이너스',
     category: '',
@@ -115,10 +115,25 @@ export function SettingsScreen() {
     refetchSavings()
   }
 
-  const handleSetBudget = async () => {
-    if (!budgetForm.category || !budgetForm.amount) return
-    await setBudget.mutateAsync({ category: budgetForm.category, amount: Number(budgetForm.amount) })
-    setBudgetSheet(false)
+  const handleSetLifeBudget = async () => {
+    if (lifeBudgetForm.categories.length === 0 || !lifeBudgetForm.limit) return
+    await setLifeBudget.mutateAsync({ categories: lifeBudgetForm.categories, limit: Number(lifeBudgetForm.limit) })
+    setLifeBudgetSheet(false)
+  }
+
+  const openLifeBudgetSheet = () => {
+    setLifeBudgetForm({
+      categories: lifeBudget?.categories ?? [],
+      limit: lifeBudget?.limit ? String(lifeBudget.limit) : '',
+    })
+    setLifeBudgetSheet(true)
+  }
+
+  const toggleCategory = (cat: string) => {
+    setLifeBudgetForm((f) => ({
+      ...f,
+      categories: f.categories.includes(cat) ? f.categories.filter((c) => c !== cat) : [...f.categories, cat],
+    }))
   }
 
   const handleAddRecurring = async () => {
@@ -151,40 +166,30 @@ export function SettingsScreen() {
   const activeLoans = (loans ?? []).filter((l) => l.is_active)
   const activeSavings = (savings ?? []).filter((s) => s.is_active)
   const activeRecurrings = (recurrings ?? []).filter((r) => r.is_active)
-  const budgetEntries = Object.entries(budgets ?? {})
-
   const recurringCategories = FLOW_CATEGORIES[recurringForm.flow_type] ?? []
 
   return (
     <div className="px-4 pt-4 pb-4 space-y-3">
       <h1 className="text-xl font-bold text-text-primary">설정</h1>
 
-      {/* Budget */}
+      {/* 생활비 예산 */}
       <Card>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-semibold text-text-primary">카테고리 예산</p>
-          <button onClick={() => setBudgetSheet(true)} className="p-1 text-blue-main">
+          <p className="text-sm font-semibold text-text-primary">생활비 예산</p>
+          <button onClick={openLifeBudgetSheet} className="p-1 text-blue-main">
             <Plus size={18} />
           </button>
         </div>
-        {budgetEntries.length === 0 ? (
-          <p className="text-xs text-text-sub text-center py-2">예산이 설정되지 않았습니다</p>
+        {!lifeBudget || lifeBudget.categories.length === 0 ? (
+          <p className="text-xs text-text-sub text-center py-2">생활비 예산이 설정되지 않았습니다</p>
         ) : (
-          <div className="space-y-2">
-            {budgetEntries.map(([cat, amt]) => (
-              <div key={cat} className="flex items-center justify-between">
-                <span className="text-sm text-text-primary">{cat}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-text-primary">{amt.toLocaleString('ko-KR')}원</span>
-                  <button
-                    className="text-[10px] text-expense"
-                    onClick={() => setBudget.mutate({ category: cat, amount: 0 })}
-                  >
-                    삭제
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {lifeBudget.categories.map((c) => (
+                <span key={c} className="text-[11px] bg-blue-50 text-blue-main px-2 py-0.5 rounded-full">{c}</span>
+              ))}
+            </div>
+            <p className="text-sm font-bold text-text-primary">월 한도: {lifeBudget.limit.toLocaleString('ko-KR')}원</p>
           </div>
         )}
       </Card>
@@ -333,36 +338,51 @@ export function SettingsScreen() {
         잠금
       </button>
 
-      {/* Budget sheet */}
-      <BottomSheet isOpen={budgetSheet} onClose={() => setBudgetSheet(false)} title="예산 설정">
-        <div className="space-y-3">
+      {/* 생활비 예산 sheet */}
+      <BottomSheet isOpen={lifeBudgetSheet} onClose={() => setLifeBudgetSheet(false)} title="생활비 예산 설정">
+        <div className="space-y-4">
           <div>
-            <label className="text-xs text-text-sub mb-1 block">카테고리</label>
+            <label className="text-xs text-text-sub mb-2 block">생활비에 포함할 카테고리 (복수 선택)</label>
             <div className="flex flex-wrap gap-1.5">
-              {EXPENSE_CATEGORIES.map((c) => (
-                <button
-                  key={c}
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium ${budgetForm.category === c ? 'bg-blue-deep text-white' : 'bg-bg-app text-text-sub'}`}
-                  onClick={() => setBudgetForm((f) => ({ ...f, category: c }))}
-                >
-                  {c}
-                </button>
-              ))}
+              {MINUS_CATEGORY_LABELS.map((c) => {
+                const selected = lifeBudgetForm.categories.includes(c)
+                return (
+                  <button
+                    key={c}
+                    onClick={() => toggleCategory(c)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors
+                      ${selected ? 'bg-blue-deep text-white' : 'bg-bg-app text-text-sub'}`}
+                  >
+                    {selected && <Check size={10} />}
+                    {c}
+                  </button>
+                )
+              })}
             </div>
+            {lifeBudgetForm.categories.length > 0 && (
+              <p className="text-[11px] text-blue-main mt-2">{lifeBudgetForm.categories.length}개 선택됨</p>
+            )}
           </div>
           <div>
-            <label className="text-xs text-text-sub mb-1 block">월 예산 (원)</label>
+            <label className="text-xs text-text-sub mb-1 block">월 한도 금액 (원)</label>
             <input
               type="number"
               inputMode="numeric"
-              value={budgetForm.amount}
-              onChange={(e) => setBudgetForm((f) => ({ ...f, amount: e.target.value }))}
-              placeholder="0"
+              value={lifeBudgetForm.limit}
+              onChange={(e) => setLifeBudgetForm((f) => ({ ...f, limit: e.target.value }))}
+              placeholder="600000"
               className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary"
             />
+            {lifeBudgetForm.limit && !isNaN(Number(lifeBudgetForm.limit)) && (
+              <p className="text-xs text-text-sub mt-1">{Number(lifeBudgetForm.limit).toLocaleString('ko-KR')}원</p>
+            )}
           </div>
-          <Button fullWidth onClick={handleSetBudget} disabled={!budgetForm.amount || setBudget.isPending}>
-            저장
+          <Button
+            fullWidth
+            onClick={handleSetLifeBudget}
+            disabled={lifeBudgetForm.categories.length === 0 || !lifeBudgetForm.limit || setLifeBudget.isPending}
+          >
+            {setLifeBudget.isPending ? '저장 중...' : '저장'}
           </Button>
         </div>
       </BottomSheet>
