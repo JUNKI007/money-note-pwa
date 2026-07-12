@@ -50,9 +50,12 @@ export function HistoryScreen() {
   }
 
   const handleDelete = async (id: string) => {
+    if (!id) { alert('ID 없음 - 데이터 오류'); return }
     setDeletingId(id)
     try {
       await deleteTx.mutateAsync(id)
+    } catch (e) {
+      alert('삭제 실패: ' + (e as Error).message)
     } finally {
       setDeletingId(null)
     }
@@ -73,17 +76,22 @@ export function HistoryScreen() {
 
   const handleUpdate = async () => {
     if (!editTx) return
-    await updateTx.mutateAsync({
-      id: editTx.transaction_id,
-      date: editForm.date,
-      member: editForm.member,
-      flow_type: editForm.flow_type,
-      category: editForm.category,
-      detail: editForm.detail,
-      amount: Number(editForm.amount),
-      memo: editForm.memo,
-    })
-    setEditTx(null)
+    if (!editTx.transaction_id) { alert('ID 없음 - 데이터 오류'); return }
+    try {
+      await updateTx.mutateAsync({
+        id: editTx.transaction_id,
+        date: editForm.date,
+        member: editForm.member,
+        flow_type: editForm.flow_type,
+        category: editForm.category,
+        detail: editForm.detail,
+        amount: Number(editForm.amount),
+        memo: editForm.memo,
+      })
+      setEditTx(null)
+    } catch (e) {
+      alert('수정 실패: ' + (e as Error).message)
+    }
   }
 
   const filtered = (transactions ?? []).filter((tx) => {
