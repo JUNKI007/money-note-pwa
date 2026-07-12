@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
+import type { ReactNode } from 'react'
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -6,6 +7,7 @@ interface ConfirmDialogProps {
   confirmLabel?: string
   onConfirm: () => void
   onCancel: () => void
+  children?: ReactNode
 }
 
 export function ConfirmDialog({
@@ -14,6 +16,7 @@ export function ConfirmDialog({
   confirmLabel = '삭제',
   onConfirm,
   onCancel,
+  children,
 }: ConfirmDialogProps) {
   return (
     <AnimatePresence>
@@ -33,7 +36,7 @@ export function ConfirmDialog({
             exit={{ opacity: 0, scale: 0.92 }}
             transition={{ duration: 0.15 }}
           >
-            <p className="text-sm font-medium text-text-primary text-center mb-4">{message}</p>
+            <p className="text-sm font-medium text-text-primary text-center mb-4 whitespace-pre-line">{message}</p>
             <div className="flex gap-2">
               <button
                 className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-text-sub active:bg-gray-200 transition-colors"
@@ -48,6 +51,7 @@ export function ConfirmDialog({
                 {confirmLabel}
               </button>
             </div>
+            {children}
           </motion.div>
         </>
       )}
