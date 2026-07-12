@@ -47,7 +47,8 @@ export function useUpdateFixedExpense() {
 export function useDeleteFixedExpense() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => gasPost('deleteFixedExpense', { id }),
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      gasPost('deleteFixedExpense', { id, name }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['fixedExpenses'] }),
   })
 }
