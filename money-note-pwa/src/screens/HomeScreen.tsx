@@ -2,8 +2,8 @@ import { useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react'
 import dayjs from 'dayjs'
-import { BarChart, Bar, XAxis, ResponsiveContainer, Cell, Tooltip, PieChart, Pie } from 'recharts'
-import { useDashboard, useMonthlyTrend } from '@/hooks/useDashboard'
+import { Cell, Tooltip, PieChart, Pie } from 'recharts'
+import { useDashboard } from '@/hooks/useDashboard'
 import { useBudgets } from '@/hooks/useBudget'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useSavingGoals } from '@/hooks/useSavings'
@@ -110,7 +110,7 @@ export function HomeScreen() {
   const { data, isLoading } = useDashboard(selectedMonth)
   const prevMonthStr = dayjs(selectedMonth).subtract(1, 'month').format('YYYY-MM')
   const { data: prevData } = useDashboard(prevMonthStr)
-  const { data: trend } = useMonthlyTrend(6)
+
   const { data: budgets } = useBudgets()
   const { data: transactions } = useTransactions({ yearMonth: selectedMonth })
   const { data: savingGoals } = useSavingGoals()
@@ -127,12 +127,6 @@ export function HomeScreen() {
     : []
 
   const totalExpense = categoryData.reduce((s, d) => s + d.amount, 0)
-
-  const trendData = (trend ?? []).map((t) => ({
-    name: dayjs(t.yearMonth).format('M월'),
-    income: t.income,
-    expense: t.expense,
-  }))
 
   // 순자산 계산
   const netAsset = (data?.totalSaved ?? 0) - (data?.totalLoanBalance ?? 0)
