@@ -281,7 +281,7 @@ export function HistoryScreen() {
             <div>
               <label className="text-xs text-text-sub mb-1 block">유형</label>
               <div className="flex gap-2">
-                {['플러스', '마이너스', '이동·저축·상환'].map((ft) => (
+                {['플러스', '마이너스'].map((ft) => (
                   <button
                     key={ft}
                     className={`flex-1 py-1.5 rounded-xl text-xs font-medium transition-colors

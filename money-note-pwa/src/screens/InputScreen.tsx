@@ -149,12 +149,16 @@ export function InputScreen() {
       amount: Number(fixedForm.amount),
       memo: fixedForm.memo,
     }
-    if (editingFixed) {
-      await updateFixed.mutateAsync({ ...payload, id: editingFixed.fixed_id })
-    } else {
-      await addFixed.mutateAsync(payload)
+    try {
+      if (editingFixed) {
+        await updateFixed.mutateAsync({ ...payload, id: editingFixed.fixed_id })
+      } else {
+        await addFixed.mutateAsync(payload)
+      }
+      setFixedSheet(false)
+    } catch (e) {
+      alert('저장 실패: ' + (e as Error).message)
     }
-    setFixedSheet(false)
   }
 
   const isFixed = inputTab === '고정지출'
