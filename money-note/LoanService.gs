@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // LoanService.gs - 대출 관리 서비스
 // Phase 2: 대출 추가, 조회, 상환, 수정, 비활성화
 // ============================================================
@@ -37,7 +37,7 @@ function addLoan(data) {
       is_deleted: false
     };
 
-    SheetService.appendRow('LOANS', loan);
+    appendRow('LOANS', loan);
     return successResponse(loan);
   } catch (e) {
     return errorResponse(e.message);
@@ -52,7 +52,7 @@ function addLoan(data) {
 function getLoans(filters) {
   try {
     filters = filters || {};
-    let rows = SheetService.getAllRows('LOANS');
+    let rows = getAllRows('LOANS');
 
     if (filters.member) {
       rows = rows.filter(r => r.member === filters.member);
@@ -85,7 +85,7 @@ function updateLoanBalance(loan_id, repaymentAmount) {
     const amount = parseAmount(repaymentAmount);
     if (amount <= 0) return errorResponse('상환 금액은 0보다 커야 합니다');
 
-    const row = SheetService.findRowBy('LOANS', 'loan_id', loan_id);
+    const row = findRowBy('LOANS', 'loan_id', loan_id);
     if (!row) return errorResponse('대출을 찾을 수 없습니다: ' + loan_id);
 
     // 삭제된 대출 확인
@@ -97,7 +97,7 @@ function updateLoanBalance(loan_id, repaymentAmount) {
     const newBalance = Math.max(0, parseAmount(row.balance) - amount);
     const now = formatDateTime();
 
-    SheetService.updateRow('LOANS', row._rowIndex, {
+    updateRow('LOANS', row._rowIndex, {
       balance: newBalance,
       updated_at: now
     });
@@ -117,7 +117,7 @@ function updateLoanBalance(loan_id, repaymentAmount) {
  */
 function updateLoan(loan_id, updates) {
   try {
-    const row = SheetService.findRowBy('LOANS', 'loan_id', loan_id);
+    const row = findRowBy('LOANS', 'loan_id', loan_id);
     if (!row) return errorResponse('대출을 찾을 수 없습니다: ' + loan_id);
 
     // 삭제된 대출 확인
@@ -135,7 +135,7 @@ function updateLoan(loan_id, updates) {
       }
     });
 
-    SheetService.updateRow('LOANS', row._rowIndex, patch);
+    updateRow('LOANS', row._rowIndex, patch);
 
     // 응답에는 최신 정보 포함
     return successResponse({ ...row, ...patch });
@@ -151,7 +151,7 @@ function updateLoan(loan_id, updates) {
  */
 function deactivateLoan(loan_id) {
   try {
-    const row = SheetService.findRowBy('LOANS', 'loan_id', loan_id);
+    const row = findRowBy('LOANS', 'loan_id', loan_id);
     if (!row) return errorResponse('대출을 찾을 수 없습니다: ' + loan_id);
 
     // 삭제된 대출 확인
@@ -160,7 +160,7 @@ function deactivateLoan(loan_id) {
     }
 
     const now = formatDateTime();
-    SheetService.updateRow('LOANS', row._rowIndex, {
+    updateRow('LOANS', row._rowIndex, {
       is_active: false,
       updated_at: now
     });

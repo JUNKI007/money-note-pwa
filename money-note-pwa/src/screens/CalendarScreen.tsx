@@ -12,6 +12,7 @@ import {
 import { useAppStore } from '@/store/appStore'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { PullToRefresh } from '@/components/ui/PullToRefresh'
 
 dayjs.locale('ko')
@@ -185,6 +186,7 @@ export function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [confirmDeleteEventId, setConfirmDeleteEventId] = useState<string | null>(null)
   const [form, setForm] = useState({
     title: '',
     memo: '',
@@ -380,7 +382,7 @@ export function CalendarScreen() {
             </div>
             <div className="flex gap-2 pt-2">
               {editEvent && (
-                <Button variant="danger" onClick={() => handleDelete(editEvent.event_id)}>
+                <Button variant="danger" onClick={() => setConfirmDeleteEventId(editEvent.event_id)}>
                   <Trash2 size={16} />
                 </Button>
               )}
@@ -395,6 +397,16 @@ export function CalendarScreen() {
           </div>
         </BottomSheet>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!confirmDeleteEventId}
+        message="일정을 삭제하시겠습니까?"
+        onConfirm={() => {
+          if (confirmDeleteEventId) handleDelete(confirmDeleteEventId)
+          setConfirmDeleteEventId(null)
+        }}
+        onCancel={() => setConfirmDeleteEventId(null)}
+      />
     </PullToRefresh>
   )
 }

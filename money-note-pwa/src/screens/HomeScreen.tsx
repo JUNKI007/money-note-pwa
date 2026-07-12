@@ -8,6 +8,7 @@ import { useBudgets } from '@/hooks/useBudget'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useSavingGoals } from '@/hooks/useSavings'
 import { useInstallments } from '@/hooks/useInstallments'
+import { useAllowanceEntries } from '@/hooks/useAllowance'
 import { useAppStore } from '@/store/appStore'
 
 const CAT_COLORS = ['#6F8FAF', '#2F9E73', '#F59E0B', '#8B5CF6', '#EC4899', '#D64545', '#14B8A6', '#F97316']
@@ -114,6 +115,7 @@ export function HomeScreen() {
   const { data: transactions } = useTransactions({ yearMonth: selectedMonth })
   const { data: savingGoals } = useSavingGoals()
   const { data: installments } = useInstallments()
+  const { data: allowanceEntries } = useAllowanceEntries()
 
   const isCurrentMonth = selectedMonth >= dayjs().format('YYYY-MM')
 
@@ -158,6 +160,24 @@ export function HomeScreen() {
   const activeInstallments = (installments ?? []).filter((i) => i.is_active && i.remaining_months > 0)
   const thisMonthInstallmentAmt = activeInstallments.reduce((s, i) => s + i.monthly_amount, 0)
   const totalInstallmentRemain = activeInstallments.reduce((s, i) => s + i.remaining_amount, 0)
+
+  // 용돈 집계 (ALLOWANCE 시트 기반 — 집안 재정과 완전 분리, 누적 잔액)
+  const allowanceData = useMemo(() => {
+    const entries = allowanceEntries ?? []
+    return ['남편', '아내'].map((member) => {
+      const myEntries = entries.filter((e) => e.member === member)
+      // 누적 잔액 (전체 기간)
+      const balance = myEntries.reduce(
+        (s, e) => s + (e.type === '입금' ? e.amount : -e.amount),
+        0,
+      )
+      // 이달 입금 / 지출
+      const thisMonthEntries = myEntries.filter((e) => e.date?.slice(0, 7) === selectedMonth)
+      const thisMonthIn = thisMonthEntries.filter((e) => e.type === '입금').reduce((s, e) => s + e.amount, 0)
+      const thisMonthOut = thisMonthEntries.filter((e) => e.type === '지출').reduce((s, e) => s + e.amount, 0)
+      return { member, balance, thisMonthIn, thisMonthOut, hasData: myEntries.length > 0 }
+    })
+  }, [allowanceEntries, selectedMonth])
 
   return (
     <div className="px-4 pt-4 pb-4 space-y-3">
@@ -273,122 +293,14 @@ export function HomeScreen() {
         </div>
       )}
 
-      {/* 할부 요약 */}
-      {activeInstallments.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.035 }}
-          className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-bold text-text-primary">진행 중인 할부</p>
-            <div className="text-right">
-              <p className="text-xs text-gray-400">이달 부담액</p>
-              <p className="text-sm font-bold text-expense">{fmt(thisMonthInstallmentAmt)}</p>
-            </div>
-          </div>
-          <div className="space-y-2.5">
-            {activeInstallments.map((inst) => {
-              const pct = ((inst.paid_months / inst.total_months) * 100)
-              return (
-                <div key={inst.installment_id}>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-medium text-text-primary truncate block">{inst.detail}</span>
-                      <span className="text-[10px] text-gray-400">
-                        {inst.paid_months}/{inst.total_months}회 완료 · 잔여 {inst.remaining_months}회
-                      </span>
-                    </div>
-                    <div className="text-right ml-2 shrink-0">
-                      <p className="text-xs font-semibold text-expense">{fmt(inst.monthly_amount)}/월</p>
-                      <p className="text-[10px] text-gray-400">잔액 {fmt(inst.remaining_amount)}</p>
-                    </div>
-                  </div>
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-orange-400 transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-          {totalInstallmentRemain > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-50 flex justify-between text-xs">
-              <span className="text-gray-400">총 잔여 할부액</span>
-              <span className="font-bold text-expense">{fmt(totalInstallmentRemain)}</span>
-            </div>
-          )}
-        </motion.div>
-      )}
-
-      {/* 적금 목표 진행률 */}
-      {activeGoals.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.04 }}
-          className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
-        >
-          <p className="text-sm font-bold text-text-primary mb-3">적금 목표</p>
-          <div className="space-y-3">
-            {activeGoals.map((g) => {
-              const pct = g.target_amount > 0 ? Math.min(100, (g.current_amount / g.target_amount) * 100) : 0
-              const remain = g.target_amount - g.current_amount
-              return (
-                <div key={g.id}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-medium text-text-primary">{g.name}</span>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-bold text-blue-deep">{fmt(g.current_amount)}</span>
-                      <span className="text-[10px] text-gray-300">/ {fmt(g.target_amount)}</span>
-                    </div>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-blue-main transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-[10px] text-gray-400">{Math.round(pct)}% 달성</span>
-                    {remain > 0 && (
-                      <span className="text-[10px] text-gray-300">잔여 {fmt(remain)}</span>
-                    )}
-                    {g.target_date && (
-                      <span className="text-[10px] text-gray-300">
-                        {dayjs(g.target_date).format('YYYY.MM')} 목표
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </motion.div>
-      )}
-
-      {/* 일별 지출 캘린더 */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
-        className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
-      >
-        <p className="text-sm font-bold text-text-primary mb-3">일별 지출</p>
-        <MiniCalendar yearMonth={selectedMonth} dailyExpense={dailyExpense} />
-      </motion.div>
-
-      {/* Category breakdown */}
+      {/* 4. 지출 카테고리 */}
       {isLoading ? (
         <Skeleton className="h-80" />
       ) : categoryData.length > 0 ? (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.06 }}
+          transition={{ delay: 0.035 }}
           className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
         >
           <p className="text-sm font-bold text-text-primary mb-4">지출 카테고리</p>
@@ -472,35 +384,151 @@ export function HomeScreen() {
         </motion.div>
       ) : null}
 
-      {/* 6-month trend */}
-      {trendData.length > 0 && (
+      {/* 5. 일별 지출 캘린더 */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.04 }}
+        className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
+      >
+        <p className="text-sm font-bold text-text-primary mb-3">일별 지출</p>
+        <MiniCalendar yearMonth={selectedMonth} dailyExpense={dailyExpense} />
+      </motion.div>
+
+      {/* 6. 진행 중인 할부 */}
+      {activeInstallments.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.08 }}
+          transition={{ delay: 0.045 }}
           className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
         >
-          <p className="text-sm font-bold text-text-primary mb-3">6개월 추이</p>
-          <ResponsiveContainer width="100%" height={120}>
-            <BarChart data={trendData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }} barCategoryGap="30%">
-              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-              <Tooltip
-                formatter={(v: number, name: string) => [fmtFull(v), name === 'income' ? '수입' : '지출']}
-                contentStyle={{ borderRadius: 12, border: 'none', fontSize: 12 }}
-              />
-              <Bar dataKey="income" fill="#2F9E73" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expense" fill="#D64545" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="flex items-center gap-3 mt-2 justify-center">
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-income" />
-              <span className="text-[10px] text-gray-400">수입</span>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold text-text-primary">진행 중인 할부</p>
+            <div className="text-right">
+              <p className="text-xs text-gray-400">이달 부담액</p>
+              <p className="text-sm font-bold text-expense">{fmt(thisMonthInstallmentAmt)}</p>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-expense" />
-              <span className="text-[10px] text-gray-400">지출</span>
+          </div>
+          <div className="space-y-2.5">
+            {activeInstallments.map((inst) => {
+              const pct = ((inst.paid_months / inst.total_months) * 100)
+              return (
+                <div key={inst.installment_id}>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-medium text-text-primary truncate block">{inst.detail}</span>
+                      <span className="text-[10px] text-gray-400">
+                        {inst.paid_months}/{inst.total_months}회 완료 · 잔여 {inst.remaining_months}회
+                      </span>
+                    </div>
+                    <div className="text-right ml-2 shrink-0">
+                      <p className="text-xs font-semibold text-expense">{fmt(inst.monthly_amount)}/월</p>
+                      <p className="text-[10px] text-gray-400">잔액 {fmt(inst.remaining_amount)}</p>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-orange-400 transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {totalInstallmentRemain > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-50 flex justify-between text-xs">
+              <span className="text-gray-400">총 잔여 할부액</span>
+              <span className="font-bold text-expense">{fmt(totalInstallmentRemain)}</span>
             </div>
+          )}
+        </motion.div>
+      )}
+
+      {/* 7. 적금 목표 진행률 */}
+      {activeGoals.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
+        >
+          <p className="text-sm font-bold text-text-primary mb-3">적금 목표</p>
+          <div className="space-y-3">
+            {activeGoals.map((g) => {
+              const pct = g.target_amount > 0 ? Math.min(100, (g.current_amount / g.target_amount) * 100) : 0
+              const remain = g.target_amount - g.current_amount
+              return (
+                <div key={g.id}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-medium text-text-primary">{g.name}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-bold text-blue-deep">{fmt(g.current_amount)}</span>
+                      <span className="text-[10px] text-gray-300">/ {fmt(g.target_amount)}</span>
+                    </div>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-blue-main transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-[10px] text-gray-400">{Math.round(pct)}% 달성</span>
+                    {remain > 0 && (
+                      <span className="text-[10px] text-gray-300">잔여 {fmt(remain)}</span>
+                    )}
+                    {g.target_date && (
+                      <span className="text-[10px] text-gray-300">
+                        {dayjs(g.target_date).format('YYYY.MM')} 목표
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* 8. 용돈 (ALLOWANCE 시트 기반 — 누적 잔액, 집안 재정 별개) */}
+      {allowanceData.some((a) => a.hasData) && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.055 }}
+          className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold text-text-primary">용돈</p>
+            <p className="text-xs text-gray-400">
+              총 잔액 {fmt(allowanceData.reduce((s, a) => s + a.balance, 0))}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {allowanceData.map((a) => {
+              const isNeg = a.balance < 0
+              return (
+                <div key={a.member} className="bg-gray-50 rounded-2xl p-3">
+                  <p className="text-xs text-gray-400 mb-0.5">{a.member}</p>
+                  <p className={`text-lg font-bold ${isNeg ? 'text-expense' : 'text-text-primary'}`}>
+                    {isNeg ? '-' : ''}{fmt(Math.abs(a.balance))}
+                  </p>
+                  <p className="text-[10px] text-purple-400 font-medium mb-1">잔액</p>
+                  {(a.thisMonthIn > 0 || a.thisMonthOut > 0) && (
+                    <div className="space-y-0.5 border-t border-gray-200 pt-1.5 mt-1">
+                      {a.thisMonthIn > 0 && (
+                        <p className="text-[10px] text-income">+{fmt(a.thisMonthIn)} 입금</p>
+                      )}
+                      {a.thisMonthOut > 0 && (
+                        <p className="text-[10px] text-expense">-{fmt(a.thisMonthOut)} 사용</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </motion.div>
       )}

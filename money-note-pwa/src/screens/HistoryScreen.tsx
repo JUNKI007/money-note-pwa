@@ -14,6 +14,7 @@ import { AmountText } from '@/components/ui/AmountText'
 import { PullToRefresh } from '@/components/ui/PullToRefresh'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import type { Transaction } from '@/hooks/useDashboard'
 
 type FlowFilter = '전체' | '플러스' | '마이너스' | '이동·저축·상환'
@@ -31,6 +32,7 @@ export function HistoryScreen() {
   const [flowFilter, setFlowFilter] = useState<FlowFilter>('전체')
   const [search, setSearch] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [editTx, setEditTx] = useState<Transaction | null>(null)
   const [editForm, setEditForm] = useState({
     date: '', member: '', flow_type: '', category: '', detail: '', amount: '', memo: '',
@@ -206,7 +208,7 @@ export function HistoryScreen() {
                         </button>
                         <motion.button
                           className="p-1.5 text-gray-300 active:text-expense"
-                          onClick={() => handleDelete(tx!.transaction_id)}
+                          onClick={() => setConfirmDeleteId(tx!.transaction_id)}
                           disabled={deletingId === tx!.transaction_id}
                           whileTap={{ scale: 0.85 }}
                         >
@@ -316,6 +318,16 @@ export function HistoryScreen() {
           </div>
         )}
       </BottomSheet>
+
+      <ConfirmDialog
+        isOpen={!!confirmDeleteId}
+        message="이 거래를 삭제하시겠습니까?"
+        onConfirm={() => {
+          if (confirmDeleteId) handleDelete(confirmDeleteId)
+          setConfirmDeleteId(null)
+        }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </PullToRefresh>
   )
 }

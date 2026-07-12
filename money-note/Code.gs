@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // Code.gs - 클라이언트-서버 진입점 및 래퍼 함수 모음
 // Phase 2: 모든 서비스 래퍼 통합 + JSON API 라우팅
 // ============================================================
@@ -99,6 +99,10 @@ function _route(action, p) {
     case 'addRecurring':         return addRecurring(p);
     case 'deleteRecurring':      return deleteRecurring(p.id);
     case 'applyRecurring':       return applyRecurring(p.yearMonth);
+    // 용돈 관리 (개인 별도 장부)
+    case 'getAllowanceEntries':  return getAllowanceEntries(p);
+    case 'addAllowanceEntry':   return addAllowanceEntry(p);
+    case 'deleteAllowanceEntry':return deleteAllowanceEntry(p.id);
     // 설정
     case 'getAppConfig':         return getAppConfig(p.key);
     case 'setAppConfig':         return setAppConfig(p.key, p.value);
@@ -335,7 +339,7 @@ function setAppConfig(key, value) {
  */
 function getMembers() {
   try {
-    const rows = SheetService.getAllRows('MEMBERS');
+    const rows = getAllRows('MEMBERS');
     return successResponse(rows);
   } catch (e) {
     return errorResponse(e.message);

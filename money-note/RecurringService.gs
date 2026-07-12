@@ -62,7 +62,7 @@ function addRecurring(data) {
       is_active:    true,
       created_at:   formatDateTime(new Date())
     };
-    addRow('RECURRING_TRANSACTIONS', row);
+    appendRow('RECURRING_TRANSACTIONS', row);
     return successResponse(row);
   } catch (e) {
     return errorResponse('정기거래 추가 오류: ' + e.message);

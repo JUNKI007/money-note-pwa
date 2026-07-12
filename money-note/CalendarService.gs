@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // CalendarService.gs — 캘린더 일정 CRUD + Google Calendar 연동
 // ============================================================
 
@@ -87,7 +87,7 @@ function addCalendarEvent(data) {
       is_deleted:              false
     };
 
-    SheetService.appendRow('CALENDAR_EVENTS', event);
+    appendRow('CALENDAR_EVENTS', event);
     return successResponse(event);
   } catch (e) {
     return errorResponse(e.message);
@@ -102,7 +102,7 @@ function addCalendarEvent(data) {
 function getCalendarEvents(filters) {
   try {
     filters = filters || {};
-    let rows = SheetService.getAllRows('CALENDAR_EVENTS');
+    let rows = getAllRows('CALENDAR_EVENTS');
 
     // 연월 필터 (start_date~end_date 범위가 해당 월과 겹치는 이벤트 포함)
     if (filters.yearMonth) {
@@ -143,7 +143,7 @@ function getCalendarEvents(filters) {
  */
 function updateCalendarEvent(event_id, updates) {
   try {
-    const row = SheetService.findRowBy('CALENDAR_EVENTS', 'event_id', event_id);
+    const row = findRowBy('CALENDAR_EVENTS', 'event_id', event_id);
     if (!row) return errorResponse('일정을 찾을 수 없습니다: ' + event_id);
     if (row.is_deleted === true || row.is_deleted === 'TRUE' || row.is_deleted === 'true') {
       return errorResponse('삭제된 일정은 수정할 수 없습니다');
@@ -179,7 +179,7 @@ function updateCalendarEvent(event_id, updates) {
       }
     }
 
-    SheetService.updateRow('CALENDAR_EVENTS', row._rowIndex, patch);
+    updateRow('CALENDAR_EVENTS', row._rowIndex, patch);
     return successResponse(Object.assign({}, row, patch));
   } catch (e) {
     return errorResponse(e.message);
@@ -193,7 +193,7 @@ function updateCalendarEvent(event_id, updates) {
  */
 function deleteCalendarEvent(event_id) {
   try {
-    const row = SheetService.findRowBy('CALENDAR_EVENTS', 'event_id', event_id);
+    const row = findRowBy('CALENDAR_EVENTS', 'event_id', event_id);
     if (!row) return errorResponse('일정을 찾을 수 없습니다: ' + event_id);
     if (row.is_deleted === true || row.is_deleted === 'TRUE' || row.is_deleted === 'true') {
       return errorResponse('이미 삭제된 일정입니다');
@@ -214,7 +214,7 @@ function deleteCalendarEvent(event_id) {
       }
     }
 
-    SheetService.updateRow('CALENDAR_EVENTS', row._rowIndex, {
+    updateRow('CALENDAR_EVENTS', row._rowIndex, {
       is_deleted: true,
       updated_at: now
     });

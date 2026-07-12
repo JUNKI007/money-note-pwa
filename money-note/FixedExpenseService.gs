@@ -168,6 +168,10 @@ function _applyOneFixedExpense(fx, yearMonth) {
     amount:    Number(fx.amount),
     memo:      memo
   });
+  // 용돈 카테고리일 때 ALLOWANCE 입금 자동 생성
+  if (fx.category === '용돈' && fx.member && fx.member !== '공동') {
+    _applyAllowanceDeposit(fx, yearMonth);
+  }
 }
 
 /**

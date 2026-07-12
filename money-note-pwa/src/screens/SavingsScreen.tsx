@@ -11,6 +11,7 @@ import { useLoans, useAddLoan, useDeactivateLoan } from '@/hooks/useLoans'
 import { useInstallments, useDeactivateInstallment } from '@/hooks/useInstallments'
 import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 const MEMBERS = ['남편', '아내', '공동']
 const REPAYMENT_TYPES = ['이자전용', '원금+이자'] as const
@@ -42,6 +43,8 @@ export function SavingsScreen() {
   const [depositSheet, setDepositSheet] = useState<string | null>(null)
   const [depositAmount, setDepositAmount] = useState('')
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null)
+  const [confirmInst, setConfirmInst] = useState<string | null>(null)
+  const [confirmSaving, setConfirmSaving] = useState<string | null>(null)
 
   const [savingForm, setSavingForm] = useState({
     name: '',
@@ -194,7 +197,7 @@ export function SavingsScreen() {
                         </p>
                       </div>
                       <button
-                        onClick={() => deactivateInst.mutate(inst.installment_id)}
+                        onClick={() => setConfirmInst(inst.installment_id)}
                         className="p-1.5 text-gray-300 active:text-expense"
                         title="완납 처리"
                       >
@@ -288,7 +291,7 @@ export function SavingsScreen() {
                         입금
                       </button>
                       <button
-                        onClick={() => deactivateSaving.mutate(g.id)}
+                        onClick={() => setConfirmSaving(g.id)}
                         className="p-1.5 text-gray-300 active:text-expense"
                       >
                         <Trash2 size={14} />
@@ -644,6 +647,27 @@ export function SavingsScreen() {
           </Button>
         </div>
       </BottomSheet>
+
+      <ConfirmDialog
+        isOpen={!!confirmInst}
+        message="할부를 완납 처리하시겠습니까?"
+        confirmLabel="완납 처리"
+        onConfirm={() => {
+          if (confirmInst) deactivateInst.mutate(confirmInst)
+          setConfirmInst(null)
+        }}
+        onCancel={() => setConfirmInst(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={!!confirmSaving}
+        message="저축 목표를 삭제하시겠습니까?"
+        onConfirm={() => {
+          if (confirmSaving) deactivateSaving.mutate(confirmSaving)
+          setConfirmSaving(null)
+        }}
+        onCancel={() => setConfirmSaving(null)}
+      />
     </div>
   )
 }

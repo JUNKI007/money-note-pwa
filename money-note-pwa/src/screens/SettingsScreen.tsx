@@ -15,6 +15,7 @@ import { gasPost } from '@/api/client'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { AmountText } from '@/components/ui/AmountText'
 import dayjs from 'dayjs'
 
@@ -46,6 +47,7 @@ export function SettingsScreen() {
   const [savingSheet, setSavingSheet] = useState(false)
   const [budgetSheet, setBudgetSheet] = useState(false)
   const [recurringSheet, setRecurringSheet] = useState(false)
+  const [confirmDeleteRecurringId, setConfirmDeleteRecurringId] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [applying, setApplying] = useState(false)
   const [gasUrl, setGasUrl] = useState(
@@ -220,7 +222,7 @@ export function SettingsScreen() {
                   </span>
                   <button
                     className="p-1 text-gray-300 active:text-expense"
-                    onClick={() => deleteRecurring.mutate(r.recurring_id)}
+                    onClick={() => setConfirmDeleteRecurringId(r.recurring_id)}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -498,6 +500,16 @@ export function SettingsScreen() {
           <Button fullWidth onClick={handleAddSaving} disabled={!savingForm.name || addSaving.isPending}>추가</Button>
         </div>
       </BottomSheet>
+
+      <ConfirmDialog
+        isOpen={!!confirmDeleteRecurringId}
+        message="정기 거래를 삭제하시겠습니까?"
+        onConfirm={() => {
+          if (confirmDeleteRecurringId) deleteRecurring.mutate(confirmDeleteRecurringId)
+          setConfirmDeleteRecurringId(null)
+        }}
+        onCancel={() => setConfirmDeleteRecurringId(null)}
+      />
     </div>
   )
 }

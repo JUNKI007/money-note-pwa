@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // SavingService.gs - 적금/저축 목표 관리 서비스
 // Phase 2: 적금/저축 목표 추가, 조회, 입금, 수정, 비활성화
 // ============================================================
@@ -34,7 +34,7 @@ function addSavingGoal(data) {
       is_deleted: false
     };
 
-    SheetService.appendRow('SAVING_GOALS', goal);
+    appendRow('SAVING_GOALS', goal);
     return successResponse(goal);
   } catch (e) {
     return errorResponse(e.message);
@@ -49,7 +49,7 @@ function addSavingGoal(data) {
 function getSavingGoals(filters) {
   try {
     filters = filters || {};
-    let rows = SheetService.getAllRows('SAVING_GOALS');
+    let rows = getAllRows('SAVING_GOALS');
 
     if (filters.member) {
       rows = rows.filter(r => r.member === filters.member);
@@ -82,7 +82,7 @@ function updateSavingAmount(goal_id, depositAmount) {
     const amount = parseAmount(depositAmount);
     if (amount <= 0) return errorResponse('입금 금액은 0보다 커야 합니다');
 
-    const row = SheetService.findRowBy('SAVING_GOALS', 'goal_id', goal_id);
+    const row = findRowBy('SAVING_GOALS', 'goal_id', goal_id);
     if (!row) return errorResponse('저축 목표를 찾을 수 없습니다: ' + goal_id);
 
     // 삭제된 적금 확인
@@ -93,7 +93,7 @@ function updateSavingAmount(goal_id, depositAmount) {
     const newSaved = parseAmount(row.saved_amount) + amount;
     const now = formatDateTime();
 
-    SheetService.updateRow('SAVING_GOALS', row._rowIndex, {
+    updateRow('SAVING_GOALS', row._rowIndex, {
       saved_amount: newSaved,
       updated_at: now
     });
@@ -113,7 +113,7 @@ function updateSavingAmount(goal_id, depositAmount) {
  */
 function updateSavingGoal(goal_id, updates) {
   try {
-    const row = SheetService.findRowBy('SAVING_GOALS', 'goal_id', goal_id);
+    const row = findRowBy('SAVING_GOALS', 'goal_id', goal_id);
     if (!row) return errorResponse('저축 목표를 찾을 수 없습니다: ' + goal_id);
 
     // 삭제된 적금 확인
@@ -131,7 +131,7 @@ function updateSavingGoal(goal_id, updates) {
       }
     });
 
-    SheetService.updateRow('SAVING_GOALS', row._rowIndex, patch);
+    updateRow('SAVING_GOALS', row._rowIndex, patch);
 
     // 응답에는 최신 정보 포함
     return successResponse({ ...row, ...patch });
@@ -147,7 +147,7 @@ function updateSavingGoal(goal_id, updates) {
  */
 function deactivateSavingGoal(goal_id) {
   try {
-    const row = SheetService.findRowBy('SAVING_GOALS', 'goal_id', goal_id);
+    const row = findRowBy('SAVING_GOALS', 'goal_id', goal_id);
     if (!row) return errorResponse('저축 목표를 찾을 수 없습니다: ' + goal_id);
 
     // 삭제된 적금 확인
@@ -156,7 +156,7 @@ function deactivateSavingGoal(goal_id) {
     }
 
     const now = formatDateTime();
-    SheetService.updateRow('SAVING_GOALS', row._rowIndex, {
+    updateRow('SAVING_GOALS', row._rowIndex, {
       is_active: false,
       updated_at: now
     });

@@ -47,7 +47,7 @@ function addInstallment(data) {
     };
 
     _ensureInstSheet();
-    SheetService.appendRow(INST_SHEET, inst);
+    appendRow(INST_SHEET, inst);
 
     // 현재 달 1회차 즉시 적용
     _applyOneInstallment(inst, currentYM, 1);
@@ -68,7 +68,7 @@ function addInstallment(data) {
 function getInstallments() {
   try {
     _ensureInstSheet();
-    var rows = SheetService.getAllRows(INST_SHEET);
+    var rows = getAllRows(INST_SHEET);
     var result = rows
       .filter(function(r) { return r.is_active === true || r.is_active === 'TRUE'; })
       .map(function(r) {
@@ -110,7 +110,7 @@ function applyInstallments(yearMonth) {
     if (currentYM > todayYM) return errorResponse('미래 달 할부 적용 불가');
 
     _ensureInstSheet();
-    var rows = SheetService.getAllRows(INST_SHEET);
+    var rows = getAllRows(INST_SHEET);
     var applied = 0;
 
     rows.forEach(function(r) {
@@ -191,7 +191,7 @@ function _applyOneInstallment(inst, yearMonth, seq) {
 }
 
 function _installmentAlreadyApplied(tag) {
-  var rows = SheetService.getAllRows('TRANSACTIONS');
+  var rows = getAllRows('TRANSACTIONS');
   return rows.some(function(r) {
     return !r.is_deleted && String(r.memo || '').indexOf(tag) !== -1;
   });
