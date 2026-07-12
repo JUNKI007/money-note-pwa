@@ -29,20 +29,18 @@ function fmtFull(n: number) {
 // ── 일별 미니 캘린더 ──
 function MiniCalendar({
   yearMonth,
-  dailyExpense,
+  dailyMap,
   selectedDay,
   onDayClick,
 }: {
   yearMonth: string
-  dailyExpense: Record<string, number>
+  dailyMap: Record<string, { out: number; in: number }>
   selectedDay: string | null
   onDayClick: (date: string) => void
 }) {
   const monthStart = dayjs(yearMonth + '-01')
   const daysInMonth = monthStart.daysInMonth()
   const startDow = monthStart.day()
-
-  const maxExpense = Math.max(...Object.values(dailyExpense), 1)
 
   const cells: (number | null)[] = []
   for (let i = 0; i < startDow; i++) cells.push(null)
@@ -64,20 +62,20 @@ function MiniCalendar({
         {cells.map((day, i) => {
           if (!day) return <div key={`e${i}`} />
           const dateStr = monthStart.date(day).format('YYYY-MM-DD')
-          const expense = dailyExpense[dateStr] ?? 0
+          const info = dailyMap[dateStr]
+          const hasData = info && (info.out > 0 || info.in > 0)
           const isToday = dateStr === today
           const isSelected = dateStr === selectedDay
-          const intensity = expense > 0 ? Math.min(1, expense / maxExpense) : 0
           const dow = (startDow + day - 1) % 7
           return (
-            <button key={day} className="flex flex-col items-center" onClick={() => onDayClick(dateStr)}>
+            <button key={day} className="flex flex-col items-center py-0.5" onClick={() => onDayClick(dateStr)}>
               <div
                 className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-medium ${
                   isSelected
                     ? 'bg-orange-400 text-white'
                     : isToday
                     ? 'bg-blue-deep text-white'
-                    : expense > 0
+                    : hasData
                     ? 'text-text-primary'
                     : dow === 0
                     ? 'text-expense/60'
@@ -85,13 +83,14 @@ function MiniCalendar({
                     ? 'text-blue-main/60'
                     : 'text-gray-300'
                 }`}
-                style={expense > 0 && !isToday && !isSelected ? { backgroundColor: `rgba(214,69,69,${intensity * 0.18})` } : {}}
               >
                 {day}
               </div>
-              {expense > 0 && (
-                <span className="text-[8px] text-expense leading-tight mt-0.5">{fmt(expense)}</span>
-              )}
+              {info?.out ? (
+                <span className="text-[8px] text-expense leading-tight mt-0.5">-{fmt(info.out)}</span>
+              ) : info?.in ? (
+                <span className="text-[8px] text-income leading-tight mt-0.5">+{fmt(info.in)}</span>
+              ) : null}
             </button>
           )
         })}
@@ -132,13 +131,14 @@ export function HomeScreen() {
   }, [lifeBudget, data?.categoryExpense])
   const livingRemain = livingBudgetLimit > 0 ? livingBudgetLimit - livingSpent : null
 
-  // 일별 지출 집계
-  const dailyExpense = useMemo(() => {
-    const map: Record<string, number> = {}
+  // 일별 수입/지출 집계
+  const dailyMap = useMemo(() => {
+    const map: Record<string, { out: number; in: number }> = {}
     for (const tx of transactions ?? []) {
-      if (!tx || tx.flow_type !== '마이너스') continue
-      if (!map[tx.date]) map[tx.date] = 0
-      map[tx.date] += tx.amount
+      if (!tx) continue
+      if (!map[tx.date]) map[tx.date] = { out: 0, in: 0 }
+      if (tx.flow_type === '마이너스') map[tx.date].out += tx.amount
+      else if (tx.flow_type === '플러스') map[tx.date].in += tx.amount
     }
     return map
   }, [transactions])
@@ -372,7 +372,7 @@ export function HomeScreen() {
         <p className="text-sm font-bold text-text-primary mb-3">일별 지출</p>
         <MiniCalendar
           yearMonth={selectedMonth}
-          dailyExpense={dailyExpense}
+          dailyMap={dailyMap}
           selectedDay={selectedDay}
           onDayClick={(d) => setSelectedDay((prev) => (prev === d ? null : d))}
         />
