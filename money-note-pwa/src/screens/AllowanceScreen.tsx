@@ -181,11 +181,11 @@ export function AllowanceScreen() {
         </p>
         <div className="flex gap-4">
           <div>
-            <p className="text-[10px] text-purple-300 mb-0.5">{dayjs(calendarMonth).format('M월')} 입금</p>
+            <p className="text-[10px] text-purple-300 mb-0.5">{dayjs(calendarMonth).format('M월')} 플러스</p>
             <p className="text-sm font-bold text-green-300">+{fmtFull(thisMonthIn)}</p>
           </div>
           <div>
-            <p className="text-[10px] text-purple-300 mb-0.5">{dayjs(calendarMonth).format('M월')} 지출</p>
+            <p className="text-[10px] text-purple-300 mb-0.5">{dayjs(calendarMonth).format('M월')} 마이너스</p>
             <p className="text-sm font-bold text-red-300">-{fmtFull(thisMonthOut)}</p>
           </div>
           <div>
@@ -197,21 +197,21 @@ export function AllowanceScreen() {
         </div>
       </div>
 
-      {/* 입금 / 지출 버튼 */}
+      {/* 플러스 / 마이너스 버튼 */}
       <div className="flex gap-2">
         <button
           onClick={() => openAdd('입금')}
           className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-green-50 text-green-600 font-semibold text-sm"
         >
           <TrendingUp size={16} />
-          입금
+          플러스
         </button>
         <button
           onClick={() => openAdd('지출')}
           className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-red-50 text-red-500 font-semibold text-sm"
         >
           <TrendingDown size={16} />
-          지출
+          마이너스
         </button>
       </div>
 
@@ -297,7 +297,7 @@ export function AllowanceScreen() {
       <BottomSheet
         isOpen={addSheet}
         onClose={() => setAddSheet(false)}
-        title={`${displayName} 용돈 ${addType}`}
+        title={`${displayName} 용돈 ${addType === '입금' ? '플러스' : '마이너스'}`}
       >
         <div className="space-y-3">
           <div className="flex gap-2">
@@ -308,7 +308,7 @@ export function AllowanceScreen() {
                 className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors
                   ${addType === t ? (t === '지출' ? 'bg-red-500 text-white' : 'bg-green-500 text-white') : 'bg-bg-app text-text-sub'}`}
               >
-                {t}
+                {t === '지출' ? '마이너스' : '플러스'}
               </button>
             ))}
           </div>
@@ -322,7 +322,7 @@ export function AllowanceScreen() {
             />
           </div>
           <div>
-            <label className="text-xs text-text-sub mb-1 block">{addType === '지출' ? '사용 내역' : '입금 내역'}</label>
+            <label className="text-xs text-text-sub mb-1 block">{addType === '지출' ? '사용 내역' : '플러스 내역'}</label>
             <input
               type="text"
               value={addForm.detail}

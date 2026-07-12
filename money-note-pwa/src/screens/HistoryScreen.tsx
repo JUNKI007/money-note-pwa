@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Trash2, Pencil, Search, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Trash2, Pencil, Search, X, CalendarSearch } from 'lucide-react'
 import dayjs from 'dayjs'
 import 'dayjs/locale/ko'
 dayjs.locale('ko')
@@ -37,6 +37,9 @@ export function HistoryScreen() {
   const { selectedMonth, setSelectedMonth } = useAppStore()
   const [flowFilter, setFlowFilter] = useState<FlowFilter>('전체')
   const [search, setSearch] = useState('')
+  const [rangeMode, setRangeMode] = useState(false)
+  const [dateFrom, setDateFrom] = useState(dayjs().startOf('month').format('YYYY-MM-DD'))
+  const [dateTo, setDateTo] = useState(dayjs().endOf('month').format('YYYY-MM-DD'))
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   // 고정지출 연동 삭제: {txId, fixedId, fixedName}
@@ -47,7 +50,9 @@ export function HistoryScreen() {
   })
 
   const { data: transactions, isLoading } = useTransactions({
-    yearMonth: selectedMonth,
+    ...(rangeMode
+      ? { startDate: dateFrom, endDate: dateTo }
+      : { yearMonth: selectedMonth }),
     ...(flowFilter !== '전체' ? { flow_type: flowFilter } : {}),
   })
   const deleteTx = useDeleteTransaction()
@@ -136,19 +141,49 @@ export function HistoryScreen() {
 
   return (
     <div className="px-4 pt-4 pb-4 space-y-3">
-      {/* Month selector */}
-      <div className="flex items-center justify-center gap-4">
-        <button onClick={prevMonth} className="p-1 text-text-sub">
-          <ChevronLeft size={20} />
-        </button>
-        <span className="text-base font-bold text-text-primary">
-          {dayjs(selectedMonth).format('YYYY년 M월')}
-        </span>
+      {/* Month selector / Date range */}
+      <div className="flex items-center gap-2">
+        {!rangeMode ? (
+          <>
+            <button onClick={prevMonth} className="p-1 text-text-sub">
+              <ChevronLeft size={20} />
+            </button>
+            <span className="flex-1 text-center text-base font-bold text-text-primary">
+              {dayjs(selectedMonth).format('YYYY년 M월')}
+            </span>
+            <button
+              onClick={nextMonth}
+              className={selectedMonth >= dayjs().format('YYYY-MM') ? 'opacity-30 p-1' : 'p-1 text-text-sub'}
+            >
+              <ChevronRight size={20} />
+            </button>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center gap-2">
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="flex-1 bg-white rounded-xl px-2 py-2 text-xs text-text-primary border border-gray-100 shadow-sm"
+            />
+            <span className="text-xs text-text-sub shrink-0">~</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom}
+              max={dayjs().format('YYYY-MM-DD')}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="flex-1 bg-white rounded-xl px-2 py-2 text-xs text-text-primary border border-gray-100 shadow-sm"
+            />
+          </div>
+        )}
         <button
-          onClick={nextMonth}
-          className={selectedMonth >= dayjs().format('YYYY-MM') ? 'opacity-30 p-1' : 'p-1 text-text-sub'}
+          onClick={() => setRangeMode((v) => !v)}
+          className={`p-2 rounded-xl transition-colors ${rangeMode ? 'bg-blue-main text-white' : 'bg-card text-text-sub'}`}
+          title="날짜 범위 검색"
         >
-          <ChevronRight size={20} />
+          <CalendarSearch size={16} />
         </button>
       </div>
 

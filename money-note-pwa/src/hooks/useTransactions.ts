@@ -4,6 +4,8 @@ import type { Transaction } from './useDashboard'
 
 export interface TransactionFilter {
   yearMonth?: string
+  startDate?: string
+  endDate?: string
   member?: string
   flow_type?: string
   category?: string

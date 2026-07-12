@@ -123,6 +123,12 @@ function getTransactions(filters) {
     if (f.yearMonth) {
       rows = rows.filter(r => _dateToYM(r.date) === f.yearMonth);
     }
+    if (f.startDate) {
+      rows = rows.filter(r => _dateToStr(r.date) >= f.startDate);
+    }
+    if (f.endDate) {
+      rows = rows.filter(r => _dateToStr(r.date) <= f.endDate);
+    }
     if (f.member) {
       rows = rows.filter(r => r.member === f.member);
     }
