@@ -202,7 +202,7 @@ function deleteTransaction(transactionId) {
   try {
     if (!transactionId) return errorResponse('transaction_id가 필요합니다.');
 
-    const row = findRowBy('TRANSACTIONS', 'transaction_id', transactionId);
+    var row = findRowBy('TRANSACTIONS', 'transaction_id', transactionId);
     if (!row) return errorResponse('거래를 찾을 수 없습니다: ' + transactionId);
 
     if (row.is_deleted === true || row.is_deleted === 'TRUE') {
@@ -213,6 +213,22 @@ function deleteTransaction(transactionId) {
       is_deleted: true,
       updated_at: formatDateTime(new Date())
     });
+
+    // 저축 입금 거래였으면 SAVINGS current_amount 차감
+    var memo = String(row.memo || '');
+    var savingMatch = memo.match(/\[저축:([^\]:]+)/);
+    if (savingMatch) {
+      var savingId = savingMatch[1];
+      var goalRow = findRowBy('SAVINGS', 'id', savingId);
+      if (goalRow && _parseBool(goalRow.is_active)) {
+        var newAmt = Math.max(0, (Number(goalRow.current_amount) || 0) - (Number(row.amount) || 0));
+        updateRow('SAVINGS', goalRow._rowIndex, {
+          current_amount: newAmt,
+          updated_at: formatDateTime(new Date())
+        });
+        Logger.log('저축 차감: ' + savingId + ' → ' + newAmt);
+      }
+    }
 
     Logger.log('거래 삭제(soft): ' + transactionId);
     return successResponse({ transaction_id: transactionId });
