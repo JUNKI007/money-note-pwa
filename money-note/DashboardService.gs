@@ -129,7 +129,7 @@ function _getTotalLoanBalance() {
     const loans = getAllRows('LOANS');
     return loans
       .filter(r => r.is_active === true || String(r.is_active).toUpperCase() === 'TRUE')
-      .reduce((sum, r) => sum + (parseAmount(r.current_balance) || 0), 0);
+      .reduce((sum, r) => sum + (parseAmount(r.balance) || 0), 0);
   } catch (e) {
     Logger.log('대출잔액 계산 스킵 (데이터 없음): ' + e.message);
     return 0;
@@ -137,13 +137,13 @@ function _getTotalLoanBalance() {
 }
 
 /**
- * SAVING_GOALS 시트에서 is_active = true 인 저축목표 current_amount 합산
+ * SAVINGS 시트에서 is_active = true 인 저축목표 current_amount 합산
  * 시트가 없거나 비어있으면 0 반환
  * @private
  */
 function _getTotalSaved() {
   try {
-    const goals = getAllRows('SAVING_GOALS');
+    const goals = getAllRows('SAVINGS');
     return goals
       .filter(r => r.is_active === true || String(r.is_active).toUpperCase() === 'TRUE')
       .reduce((sum, r) => sum + (parseAmount(r.current_amount) || 0), 0);
