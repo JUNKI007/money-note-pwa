@@ -53,6 +53,7 @@ export function SavingsScreen() {
   const [savingForm, setSavingForm] = useState({
     name: '',
     target_amount: '',
+    monthly_amount: '',
     target_date: '',
     memo: '',
   })
@@ -78,14 +79,15 @@ export function SavingsScreen() {
   const thisMonthInstall = activeInsts.reduce((s, i) => s + i.monthly_amount, 0)
 
   const handleAddSaving = async () => {
-    if (!savingForm.name || !savingForm.target_amount) return
+    if (!savingForm.name) return
     await addSaving.mutateAsync({
       name: savingForm.name,
-      target_amount: Number(savingForm.target_amount),
+      target_amount: Number(savingForm.target_amount) || 0,
+      monthly_amount: Number(savingForm.monthly_amount) || 0,
       target_date: savingForm.target_date,
       memo: savingForm.memo,
     })
-    setSavingForm({ name: '', target_amount: '', target_date: '', memo: '' })
+    setSavingForm({ name: '', target_amount: '', monthly_amount: '', target_date: '', memo: '' })
     setSavingSheet(false)
   }
 
@@ -293,11 +295,16 @@ export function SavingsScreen() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="text-sm font-bold text-text-primary">{g.name}</p>
-                      {g.target_date && (
-                        <p className="text-[10px] text-gray-400 mt-0.5">
-                          {dayjs(g.target_date).format('YYYY년 M월')} 목표
-                        </p>
-                      )}
+                      <div className="flex gap-2 mt-0.5">
+                        {g.monthly_amount > 0 && (
+                          <p className="text-[10px] text-blue-main">월 {fmt(g.monthly_amount)} 자동</p>
+                        )}
+                        {g.target_date && (
+                          <p className="text-[10px] text-gray-400">
+                            {dayjs(g.target_date).format('YYYY.MM')} 목표
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -483,6 +490,20 @@ export function SavingsScreen() {
               onChange={(e) => setSavingForm((f) => ({ ...f, target_amount: e.target.value }))}
               className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary"
             />
+          </div>
+          <div>
+            <label className="text-xs text-text-sub mb-1 block">월 자동 납입액 (원, 선택)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              placeholder="매달 1일 자동 차감 금액"
+              value={savingForm.monthly_amount}
+              onChange={(e) => setSavingForm((f) => ({ ...f, monthly_amount: e.target.value }))}
+              className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary"
+            />
+            {savingForm.monthly_amount && (
+              <p className="text-[11px] text-blue-main mt-1">매달 1일 {Number(savingForm.monthly_amount).toLocaleString('ko-KR')}원 자동 납입</p>
+            )}
           </div>
           <div>
             <label className="text-xs text-text-sub mb-1 block">목표 날짜 (선택)</label>

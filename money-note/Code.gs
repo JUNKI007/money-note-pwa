@@ -75,7 +75,8 @@ function _route(action, p) {
     case 'addSavingGoal':        return addSavingGoal(p);
     case 'getSavingGoals':       return getSavingGoals();
     case 'updateSavingGoal':     return updateSavingGoal(p);
-    case 'deactivateSavingGoal': return deactivateSavingGoal(p.id);
+    case 'deactivateSavingGoal': return deactivateSavingGoal(p);
+    case 'applySavings':         return applySavings(p.yearMonth);
     // 캘린더
     case 'addCalendarEvent':     return addCalendarEvent(p);
     case 'getCalendarEvents':    return getCalendarEvents(p);

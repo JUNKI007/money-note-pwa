@@ -12,7 +12,7 @@ import { AmountText } from '@/components/ui/AmountText'
 
 export function SettingsScreen() {
   const lock = useAuthStore((s) => s.lock)
-  const { data: savings, refetch: refetchSavings } = useSavingGoals()
+  const { data: savings } = useSavingGoals()
   const { data: lifeBudget } = useLifeBudget()
   const addSaving = useAddSavingGoal()
   const deactivateSaving = useDeactivateSavingGoal()
@@ -27,7 +27,7 @@ export function SettingsScreen() {
   )
 
   const [savingForm, setSavingForm] = useState({
-    name: '', target_amount: '', target_date: '',
+    name: '', target_amount: '', monthly_amount: '', target_date: '',
   })
 
   const handleSaveGasUrl = () => {
@@ -51,11 +51,12 @@ export function SettingsScreen() {
     if (!savingForm.name) return
     await addSaving.mutateAsync({
       name: savingForm.name,
-      target_amount: Number(savingForm.target_amount),
+      target_amount: Number(savingForm.target_amount) || 0,
+      monthly_amount: Number(savingForm.monthly_amount) || 0,
       target_date: savingForm.target_date,
     })
+    setSavingForm({ name: '', target_amount: '', monthly_amount: '', target_date: '' })
     setSavingSheet(false)
-    refetchSavings()
   }
 
   const handleSetLifeBudget = async () => {
@@ -226,23 +227,39 @@ export function SettingsScreen() {
       {/* Add Saving Sheet */}
       <BottomSheet isOpen={savingSheet} onClose={() => setSavingSheet(false)} title="저축 목표 추가">
         <div className="space-y-3">
-          {[
-            { label: '목표명', key: 'name', type: 'text', placeholder: '예: 여행 적금' },
-            { label: '목표 금액 (원)', key: 'target_amount', type: 'number', placeholder: '0' },
-            { label: '목표일', key: 'target_date', type: 'date', placeholder: '' },
-          ].map(({ label, key, type, placeholder }) => (
-            <div key={key}>
-              <label className="text-xs text-text-sub mb-1 block">{label}</label>
-              <input
-                type={type}
-                value={savingForm[key as keyof typeof savingForm]}
-                onChange={(e) => setSavingForm((f) => ({ ...f, [key]: e.target.value }))}
-                placeholder={placeholder}
-                className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary"
-              />
-            </div>
-          ))}
-          <Button fullWidth onClick={handleAddSaving} disabled={!savingForm.name || addSaving.isPending}>추가</Button>
+          <div>
+            <label className="text-xs text-text-sub mb-1 block">목표명</label>
+            <input type="text" value={savingForm.name}
+              onChange={(e) => setSavingForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="예: 결혼적금, 비상금"
+              className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary" />
+          </div>
+          <div>
+            <label className="text-xs text-text-sub mb-1 block">목표 금액 (원)</label>
+            <input type="number" inputMode="numeric" value={savingForm.target_amount}
+              onChange={(e) => setSavingForm((f) => ({ ...f, target_amount: e.target.value }))}
+              placeholder="16000000"
+              className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary" />
+          </div>
+          <div>
+            <label className="text-xs text-text-sub mb-1 block">월 자동 납입액 (원, 선택)</label>
+            <input type="number" inputMode="numeric" value={savingForm.monthly_amount}
+              onChange={(e) => setSavingForm((f) => ({ ...f, monthly_amount: e.target.value }))}
+              placeholder="매달 1일 자동 차감 금액 (없으면 공란)"
+              className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary" />
+            {savingForm.monthly_amount && (
+              <p className="text-[11px] text-blue-main mt-1">매달 1일 {Number(savingForm.monthly_amount).toLocaleString('ko-KR')}원 자동 납입</p>
+            )}
+          </div>
+          <div>
+            <label className="text-xs text-text-sub mb-1 block">목표 날짜 (선택)</label>
+            <input type="month" value={savingForm.target_date.slice(0, 7)}
+              onChange={(e) => setSavingForm((f) => ({ ...f, target_date: e.target.value + '-01' }))}
+              className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary" />
+          </div>
+          <Button fullWidth onClick={handleAddSaving} disabled={!savingForm.name || addSaving.isPending}>
+            {addSaving.isPending ? '추가 중...' : '저축 목표 추가'}
+          </Button>
         </div>
       </BottomSheet>
     </div>

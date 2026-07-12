@@ -489,28 +489,37 @@ export function HomeScreen() {
               return (
                 <div key={g.id}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-medium text-text-primary">{g.name}</span>
+                    <div>
+                      <span className="text-xs font-medium text-text-primary">{g.name}</span>
+                      {g.monthly_amount > 0 && (
+                        <span className="ml-1.5 text-[10px] text-blue-main">월 {fmt(g.monthly_amount)}</span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1">
                       <span className="text-xs font-bold text-blue-deep">{fmt(g.current_amount)}</span>
-                      <span className="text-[10px] text-gray-300">/ {fmt(g.target_amount)}</span>
+                      {g.target_amount > 0 && (
+                        <span className="text-[10px] text-gray-300">/ {fmt(g.target_amount)}</span>
+                      )}
                     </div>
                   </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full bg-blue-main transition-all"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-[10px] text-gray-400">{Math.round(pct)}% 달성</span>
-                    {remain > 0 && (
-                      <span className="text-[10px] text-gray-300">잔여 {fmt(remain)}</span>
-                    )}
-                    {g.target_date && (
-                      <span className="text-[10px] text-gray-300">
-                        {dayjs(g.target_date).format('YYYY.MM')} 목표
-                      </span>
-                    )}
+                    <span className="text-[10px] text-blue-main font-semibold">{Math.round(pct)}% 달성</span>
+                    <div className="flex items-center gap-2">
+                      {remain > 0 && g.target_amount > 0 && (
+                        <span className="text-[10px] text-gray-300">잔여 {fmt(remain)}</span>
+                      )}
+                      {g.target_date && (
+                        <span className="text-[10px] text-gray-300">
+                          {dayjs(g.target_date).format('YYYY.MM')} 목표
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               )

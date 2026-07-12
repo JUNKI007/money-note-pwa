@@ -1,210 +1,171 @@
-﻿// ============================================================
-// SavingService.gs - 적금/저축 목표 관리 서비스
-// Phase 2: 적금/저축 목표 추가, 조회, 입금, 수정, 비활성화
+// ============================================================
+// SavingService.gs - 적금/저축 목표 관리
+// - SAVING_GOALS 시트: id, name, target_amount, monthly_amount,
+//   current_amount, target_date, is_active, memo, created_at, updated_at
+// - monthly_amount > 0 이면 매월 1일 자동 차감 (applySavings)
 // ============================================================
 
-const SAVING_PREFIX = 'S';
+const SAVING_SHEET = 'SAVING_GOALS';
+const SAVING_COLUMNS = [
+  'id', 'name', 'target_amount', 'monthly_amount', 'current_amount',
+  'target_date', 'is_active', 'memo', 'created_at', 'updated_at'
+];
 
-/**
- * 새 적금/저축 목표 추가
- * @param {Object} data - 적금 정보 {member, name, target_amount, start_date?, end_date?, memo?}
- * @returns {Object} {success, data: 생성된 적금 객체}
- */
+function _ensureSavingSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss.getSheetByName(SAVING_SHEET)) {
+    var s = ss.insertSheet(SAVING_SHEET);
+    s.getRange(1, 1, 1, SAVING_COLUMNS.length).setValues([SAVING_COLUMNS]);
+    s.setFrozenRows(1);
+  }
+}
+
+/** 저축 목표 목록 조회 - 프론트 필드명으로 정규화 */
+function getSavingGoals() {
+  try {
+    _ensureSavingSheet();
+    var rows = getAllRows(SAVING_SHEET).filter(function(r) {
+      return r.is_active === true || String(r.is_active).toUpperCase() === 'TRUE';
+    });
+    // 이전 스키마(goal_id/saved_amount) 호환 + 정규화
+    var result = rows.map(function(r) {
+      return {
+        id:             r.id || r.goal_id || '',
+        name:           r.name || '',
+        target_amount:  Number(r.target_amount) || 0,
+        monthly_amount: Number(r.monthly_amount) || 0,
+        current_amount: Number(r.current_amount ?? r.saved_amount) || 0,
+        target_date:    r.target_date || r.end_date || '',
+        is_active:      true,
+        memo:           r.memo || ''
+      };
+    });
+    return successResponse(result);
+  } catch (e) {
+    return errorResponse('저축 조회 오류: ' + e.message);
+  }
+}
+
+/** 저축 목표 추가 */
 function addSavingGoal(data) {
   try {
-    const err = validateRequired(data, ['member', 'name', 'target_amount']);
-    if (err) return errorResponse(err);
-
-    const target = parseAmount(data.target_amount);
-    if (target <= 0) return errorResponse('목표 금액은 0보다 커야 합니다');
-
-    const now = formatDateTime();
-    const goal = {
-      goal_id: generateId(SAVING_PREFIX),
-      member: data.member,
-      name: data.name,
-      target_amount: target,
-      saved_amount: 0,
-      start_date: data.start_date || formatDate(),
-      end_date: data.end_date || '',
-      is_active: true,
-      memo: data.memo || '',
-      created_at: now,
-      updated_at: now,
-      is_deleted: false
+    if (!data.name) return errorResponse('name이 필요합니다.');
+    _ensureSavingSheet();
+    var id = 'SG' + new Date().getTime();
+    var now = formatDateTime(new Date());
+    var row = {
+      id:             id,
+      name:           data.name,
+      target_amount:  Number(data.target_amount) || 0,
+      monthly_amount: Number(data.monthly_amount) || 0,
+      current_amount: 0,
+      target_date:    data.target_date || '',
+      is_active:      true,
+      memo:           data.memo || '',
+      created_at:     now,
+      updated_at:     now
     };
-
-    appendRow('SAVING_GOALS', goal);
-    return successResponse(goal);
+    appendRow(SAVING_SHEET, row);
+    return successResponse(row);
   } catch (e) {
-    return errorResponse(e.message);
+    return errorResponse('저축 추가 오류: ' + e.message);
+  }
+}
+
+/** 저축 목표 수정 (current_amount 직접 지정 포함) */
+function updateSavingGoal(data) {
+  try {
+    _ensureSavingSheet();
+    var id = data.id || data.goal_id;
+    var row = id ? findRowBy(SAVING_SHEET, 'id', id) : null;
+    if (!row) row = id ? findRowBy(SAVING_SHEET, 'goal_id', id) : null;
+    if (!row) return errorResponse('저축 목표를 찾을 수 없습니다.');
+
+    var patch = { updated_at: formatDateTime(new Date()) };
+    ['name', 'target_amount', 'monthly_amount', 'current_amount', 'target_date', 'memo'].forEach(function(k) {
+      if (data[k] !== undefined) patch[k] = (k.indexOf('amount') !== -1) ? Number(data[k]) : data[k];
+    });
+    // 이전 스키마 saved_amount 호환
+    if (data.saved_amount !== undefined) patch.current_amount = Number(data.saved_amount);
+
+    updateRow(SAVING_SHEET, row._rowIndex, patch);
+    return successResponse(Object.assign({}, row, patch));
+  } catch (e) {
+    return errorResponse('저축 수정 오류: ' + e.message);
+  }
+}
+
+/** 저축 목표 비활성화 */
+function deactivateSavingGoal(data) {
+  try {
+    _ensureSavingSheet();
+    var id = (typeof data === 'string') ? data : (data.id || data.goal_id);
+    var row = findRowBy(SAVING_SHEET, 'id', id) || findRowBy(SAVING_SHEET, 'goal_id', id);
+    if (!row) return errorResponse('저축 목표를 찾을 수 없습니다.');
+    updateRow(SAVING_SHEET, row._rowIndex, { is_active: false, updated_at: formatDateTime(new Date()) });
+    return successResponse({ id: id });
+  } catch (e) {
+    return errorResponse('저축 비활성화 오류: ' + e.message);
   }
 }
 
 /**
- * 적금/저축 목표 목록 조회
- * @param {Object} filters - 필터 조건 {member?, is_active?}
- * @returns {Object} {success, data: 적금 배열 (최신순)}
+ * 매월 1일 저축 자동 차감
+ * - monthly_amount > 0 인 활성 목표에 대해
+ *   TRANSACTIONS에 이동·저축·상환 거래 생성 + current_amount 업데이트
+ * - 중복 방지: memo에 [저축:id:YYYY-MM] 태그
  */
-function getSavingGoals(filters) {
+function applySavings(yearMonth) {
   try {
-    filters = filters || {};
-    let rows = getAllRows('SAVING_GOALS');
+    if (!yearMonth) return errorResponse('yearMonth가 필요합니다.');
+    var currentYM = getCurrentYearMonth();
+    if (yearMonth > currentYM) return successResponse({ applied: 0, skipped: 'future' });
 
-    if (filters.member) {
-      rows = rows.filter(r => r.member === filters.member);
-    }
-    if (filters.is_active !== undefined) {
-      const want = filters.is_active === true || filters.is_active === 'true' || filters.is_active === 'TRUE';
-      rows = rows.filter(r => {
-        const val = r.is_active === true || r.is_active === 'true' || r.is_active === 'TRUE';
-        return val === want;
+    _ensureSavingSheet();
+    var goals = getAllRows(SAVING_SHEET).filter(function(r) {
+      return (r.is_active === true || String(r.is_active).toUpperCase() === 'TRUE')
+        && Number(r.monthly_amount || 0) > 0;
+    });
+
+    // 이미 적용된 태그 확인
+    var existingTx = getAllRows('TRANSACTIONS');
+    var appliedSet = {};
+    existingTx.forEach(function(r) {
+      var m = String(r.memo || '').match(/\[저축:([^:]+):([^\]]+)\]/);
+      if (m && m[2] === yearMonth) appliedSet[m[1]] = true;
+    });
+
+    var applied = 0;
+    goals.forEach(function(goal) {
+      var id = goal.id || goal.goal_id;
+      if (appliedSet[id]) return;
+
+      var monthly = Number(goal.monthly_amount);
+      var tag = '[저축:' + id + ':' + yearMonth + ']';
+
+      addTransaction({
+        date:      yearMonth + '-01',
+        member:    '공동',
+        flow_type: '이동·저축·상환',
+        category:  '적금',
+        detail:    goal.name,
+        amount:    monthly,
+        memo:      tag
       });
-    }
 
-    // 최신순 정렬 (created_at 기준)
-    rows.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+      // current_amount 업데이트
+      var curAmount = Number(goal.current_amount ?? goal.saved_amount) || 0;
+      updateRow(SAVING_SHEET, goal._rowIndex, {
+        current_amount: curAmount + monthly,
+        updated_at: formatDateTime(new Date())
+      });
 
-    return successResponse(rows);
-  } catch (e) {
-    return errorResponse(e.message);
-  }
-}
-
-/**
- * 적금 입금 (저축 금액 증가)
- * @param {string} goal_id - 적금 ID
- * @param {number|string} depositAmount - 입금 금액
- * @returns {Object} {success, data: 업데이트된 적금 객체}
- */
-function updateSavingAmount(goal_id, depositAmount) {
-  try {
-    const amount = parseAmount(depositAmount);
-    if (amount <= 0) return errorResponse('입금 금액은 0보다 커야 합니다');
-
-    const row = findRowBy('SAVING_GOALS', 'goal_id', goal_id);
-    if (!row) return errorResponse('저축 목표를 찾을 수 없습니다: ' + goal_id);
-
-    // 삭제된 적금 확인
-    if (row.is_deleted === true || row.is_deleted === 'TRUE' || row.is_deleted === 'true') {
-      return errorResponse('삭제된 저축 목표입니다');
-    }
-
-    const newSaved = parseAmount(row.saved_amount) + amount;
-    const now = formatDateTime();
-
-    updateRow('SAVING_GOALS', row._rowIndex, {
-      saved_amount: newSaved,
-      updated_at: now
+      applied++;
     });
 
-    // 응답에는 최신 정보 포함
-    return successResponse({ ...row, saved_amount: newSaved, updated_at: now });
+    Logger.log('저축 자동 적용: ' + yearMonth + ' → ' + applied + '건');
+    return successResponse({ applied: applied });
   } catch (e) {
-    return errorResponse(e.message);
+    return errorResponse('저축 자동 적용 오류: ' + e.message);
   }
-}
-
-/**
- * 적금 목표 정보 수정 (name, target_amount, end_date, memo만 수정 가능)
- * @param {string} goal_id - 적금 ID
- * @param {Object} updates - 수정할 필드 {name?, target_amount?, end_date?, memo?}
- * @returns {Object} {success, data: 업데이트된 적금 객체}
- */
-function updateSavingGoal(goal_id, updates) {
-  try {
-    const row = findRowBy('SAVING_GOALS', 'goal_id', goal_id);
-    if (!row) return errorResponse('저축 목표를 찾을 수 없습니다: ' + goal_id);
-
-    // 삭제된 적금 확인
-    if (row.is_deleted === true || row.is_deleted === 'TRUE' || row.is_deleted === 'true') {
-      return errorResponse('삭제된 저축 목표입니다');
-    }
-
-    // 허용된 필드만 업데이트
-    const allowed = ['name', 'target_amount', 'end_date', 'memo'];
-    const patch = { updated_at: formatDateTime() };
-
-    allowed.forEach(k => {
-      if (updates[k] !== undefined) {
-        patch[k] = k === 'target_amount' ? parseAmount(updates[k]) : updates[k];
-      }
-    });
-
-    updateRow('SAVING_GOALS', row._rowIndex, patch);
-
-    // 응답에는 최신 정보 포함
-    return successResponse({ ...row, ...patch });
-  } catch (e) {
-    return errorResponse(e.message);
-  }
-}
-
-/**
- * 적금 목표 비활성화 (삭제 대신 is_active = false)
- * @param {string} goal_id - 적금 ID
- * @returns {Object} {success, data: 업데이트된 적금 객체}
- */
-function deactivateSavingGoal(goal_id) {
-  try {
-    const row = findRowBy('SAVING_GOALS', 'goal_id', goal_id);
-    if (!row) return errorResponse('저축 목표를 찾을 수 없습니다: ' + goal_id);
-
-    // 삭제된 적금 확인
-    if (row.is_deleted === true || row.is_deleted === 'TRUE' || row.is_deleted === 'true') {
-      return errorResponse('삭제된 저축 목표입니다');
-    }
-
-    const now = formatDateTime();
-    updateRow('SAVING_GOALS', row._rowIndex, {
-      is_active: false,
-      updated_at: now
-    });
-
-    // 응답에는 최신 정보 포함
-    return successResponse({ ...row, is_active: false, updated_at: now });
-  } catch (e) {
-    return errorResponse(e.message);
-  }
-}
-
-// ──────────────────────────────────────────────
-// 테스트 함수 (GAS 에디터에서 수동 실행)
-// ──────────────────────────────────────────────
-
-/**
- * SavingService 테스트 함수
- * GAS 에디터에서 test_SavingService() 실행 후 Logger 확인
- */
-function test_SavingService() {
-  Logger.log('=== SavingService 테스트 시작 ===');
-
-  // 적금 추가
-  const r1 = addSavingGoal({
-    member: 'M001',
-    name: '비상금',
-    target_amount: 5000000
-  });
-  Logger.log('1. 적금 추가: ' + JSON.stringify(r1));
-  if (!r1.success) {
-    Logger.log('실패: ' + r1.error);
-    return;
-  }
-
-  const id = r1.data.goal_id;
-  Logger.log('생성된 적금 ID: ' + id);
-
-  // 조회
-  const r2 = getSavingGoals({ member: 'M001' });
-  Logger.log('2. 조회: ' + r2.data.length + '건');
-
-  // 입금 (300,000원)
-  const r3 = updateSavingAmount(id, 300000);
-  Logger.log('3. 입금 후 saved_amount: ' + r3.data.saved_amount + ' (기대값: 300000)');
-
-  // 비활성화
-  const r4 = deactivateSavingGoal(id);
-  Logger.log('4. 비활성화 후 is_active: ' + r4.data.is_active + ' (기대값: false)');
-
-  Logger.log('=== SavingService 테스트 완료 ===');
 }

@@ -40,6 +40,11 @@ export function Prefetcher() {
       })
       .catch(() => {})
     gasPost('applyInstallments', { yearMonth: ym }).catch(() => {})
+    gasPost('applySavings', { yearMonth: ym })
+      .then(() => {
+        qc.invalidateQueries({ queryKey: ['savings'] }).catch(() => {})
+      })
+      .catch(() => {})
   }, []) // 마운트 1회만 실행
 
   return null
