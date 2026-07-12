@@ -211,3 +211,62 @@ function deleteTransaction(transactionId) {
     return errorResponse('거래 삭제 오류: ' + e.message);
   }
 }
+
+/**
+ * 거래 일괄 추가 (카드 이용내역 가져오기 등)
+ * category 빈 값 허용 — 사용자가 나중에 내역 탭에서 수정
+ *
+ * @param {Object[]} transactions - 거래 배열
+ * @returns {{ success: boolean, data: { saved: number, errors: number } }}
+ */
+function bulkSaveTransactions(transactions) {
+  try {
+    if (!Array.isArray(transactions) || transactions.length === 0) {
+      return errorResponse('거래 목록이 비어있습니다');
+    }
+
+    var saved = 0;
+    var errors = 0;
+    var now = formatDateTime(new Date());
+
+    var rows = transactions.map(function(data) {
+      try {
+        var amount = parseAmount(data.amount);
+        if (amount <= 0) { errors++; return null; }
+
+        var flowType = data.flow_type || '마이너스';
+        var category = data.category || '';
+        var transactionType = category
+          ? resolveTransactionType(flowType, category)
+          : (flowType === '마이너스' ? '소비' : '수입');
+
+        saved++;
+        return {
+          transaction_id:   generateId('T'),
+          date:             data.date || formatDate(new Date()),
+          member:           data.member || '공동',
+          flow_type:        flowType,
+          transaction_type: transactionType,
+          category:         category,
+          detail:           data.detail  || '',
+          amount:           amount,
+          memo:             data.memo    || '',
+          created_at:       now,
+          updated_at:       now,
+          is_deleted:       false
+        };
+      } catch (_) {
+        errors++;
+        return null;
+      }
+    }).filter(function(r) { return r !== null; });
+
+    // 시트에 일괄 추가
+    rows.forEach(function(row) { appendRow('TRANSACTIONS', row); });
+
+    Logger.log('일괄 거래 추가: ' + saved + '건 성공, ' + errors + '건 실패');
+    return successResponse({ saved: saved, errors: errors });
+  } catch (e) {
+    return errorResponse('일괄 거래 저장 오류: ' + e.message);
+  }
+}

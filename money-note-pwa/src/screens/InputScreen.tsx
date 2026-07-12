@@ -15,6 +15,7 @@ import {
 import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
+import { CardImport } from '@/components/CardImport'
 
 type FlowType = '플러스' | '마이너스' | '이동·저축·상환'
 type InputTab = FlowType | '고정지출'
@@ -466,6 +467,11 @@ export function InputScreen() {
           >
             {saveTx.isPending ? '저장 중...' : '저장하기'}
           </Button>
+
+          {/* 카드 이용내역 가져오기 */}
+          <div className="border-t border-gray-100 pt-3">
+            <CardImport />
+          </div>
         </>
       )}
     </div>

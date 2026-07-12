@@ -60,6 +60,7 @@ function _route(action, p) {
     case 'saveTransaction':      return saveTransaction(p);
     case 'getTransactions':      return getTransactions(p);
     case 'deleteTransaction':    return deleteTransaction(p.id);
+    case 'bulkSaveTransactions': return bulkSaveTransactions(p.transactions);
     // 대출
     case 'addLoan':              return addLoan(p);
     case 'getLoans':             return getLoans();
