@@ -247,13 +247,13 @@ export function SettingsScreen() {
               <div key={l.id} className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-text-primary">{l.name}</p>
-                  <p className="text-xs text-text-sub">{l.bank} · {l.interest_rate}%</p>
+                  <p className="text-xs text-text-sub">{l.member} · {l.interest_rate}%</p>
                 </div>
                 <div className="text-right">
-                  <AmountText amount={l.current_balance} type="expense" className="text-sm" />
+                  <AmountText amount={l.balance ?? l.principal} type="expense" className="text-sm" />
                   <button
                     className="text-[10px] text-text-sub mt-0.5 block ml-auto"
-                    onClick={() => deactivateLoan.mutate(l.id)}
+                    onClick={() => deactivateLoan.mutate(l.loan_id ?? l.id)}
                   >
                     비활성화
                   </button>

@@ -2,16 +2,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { gasPost } from '@/api/client'
 
 export interface Loan {
+  loan_id: string
   id: string
   name: string
-  bank: string
+  member: string
   principal: number
-  current_balance: number
+  balance: number
   interest_rate: number
   start_date: string
   end_date: string
+  repayment_type: '이자전용' | '원금+이자' // 이자전용: 이자만 납부, 원금+이자: 원금도 함께 상환
   monthly_payment: number
   is_active: boolean
+  memo: string
 }
 
 export function useLoans() {

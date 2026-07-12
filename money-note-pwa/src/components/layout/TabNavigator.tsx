@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
-import { Home, PlusCircle, List, Calendar, Settings } from 'lucide-react'
+import { Home, PlusCircle, List, PiggyBank, Settings } from 'lucide-react'
 
-type Tab = '홈' | '입력' | '내역' | '캘린더' | '설정'
+type Tab = '홈' | '입력' | '내역' | '저축' | '설정'
 
 interface TabNavigatorProps {
   activeTab: Tab
@@ -12,7 +12,7 @@ const tabs: { id: Tab; icon: React.ElementType; label: string }[] = [
   { id: '홈', icon: Home, label: '홈' },
   { id: '입력', icon: PlusCircle, label: '입력' },
   { id: '내역', icon: List, label: '내역' },
-  { id: '캘린더', icon: Calendar, label: '캘린더' },
+  { id: '저축', icon: PiggyBank, label: '저축' },
   { id: '설정', icon: Settings, label: '설정' },
 ]
 

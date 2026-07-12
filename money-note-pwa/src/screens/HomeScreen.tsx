@@ -1,11 +1,13 @@
+import { useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react'
 import dayjs from 'dayjs'
 import { BarChart, Bar, XAxis, ResponsiveContainer, Cell, Tooltip, PieChart, Pie } from 'recharts'
 import { useDashboard, useMonthlyTrend } from '@/hooks/useDashboard'
 import { useBudgets } from '@/hooks/useBudget'
+import { useTransactions } from '@/hooks/useTransactions'
+import { useSavingGoals } from '@/hooks/useSavings'
 import { useAppStore } from '@/store/appStore'
-import { AmountText } from '@/components/ui/AmountText'
 
 const CAT_COLORS = ['#6F8FAF', '#2F9E73', '#F59E0B', '#8B5CF6', '#EC4899', '#D64545', '#14B8A6', '#F97316']
 
@@ -14,7 +16,91 @@ function Skeleton({ className = '' }: { className?: string }) {
 }
 
 function fmt(n: number) {
+  if (Math.abs(n) >= 100_000_000) return (n / 100_000_000).toFixed(1) + '억원'
+  if (Math.abs(n) >= 10_000) return Math.round(n / 10_000) + '만원'
   return n.toLocaleString('ko-KR') + '원'
+}
+
+function fmtFull(n: number) {
+  return n.toLocaleString('ko-KR') + '원'
+}
+
+// ── 일별 미니 캘린더 ──
+function MiniCalendar({
+  yearMonth,
+  dailyExpense,
+}: {
+  yearMonth: string
+  dailyExpense: Record<string, number>
+}) {
+  const monthStart = dayjs(yearMonth + '-01')
+  const daysInMonth = monthStart.daysInMonth()
+  const startDow = monthStart.day() // 0=일
+
+  const maxExpense = Math.max(...Object.values(dailyExpense), 1)
+
+  const cells: (number | null)[] = []
+  for (let i = 0; i < startDow; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  const today = dayjs().format('YYYY-MM-DD')
+  const DOW = ['일', '월', '화', '수', '목', '금', '토']
+
+  return (
+    <div>
+      {/* 요일 헤더 */}
+      <div className="grid grid-cols-7 mb-1">
+        {DOW.map((d, i) => (
+          <div
+            key={d}
+            className={`text-center text-[10px] font-medium py-1 ${
+              i === 0 ? 'text-expense' : i === 6 ? 'text-blue-main' : 'text-gray-400'
+            }`}
+          >
+            {d}
+          </div>
+        ))}
+      </div>
+      {/* 날짜 셀 */}
+      <div className="grid grid-cols-7 gap-y-1">
+        {cells.map((day, i) => {
+          if (!day) return <div key={`e${i}`} />
+          const dateStr = monthStart.date(day).format('YYYY-MM-DD')
+          const expense = dailyExpense[dateStr] ?? 0
+          const isToday = dateStr === today
+          const intensity = expense > 0 ? Math.min(1, expense / maxExpense) : 0
+          const dow = (startDow + day - 1) % 7
+          return (
+            <div key={day} className="flex flex-col items-center">
+              <div
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-medium relative ${
+                  isToday
+                    ? 'bg-blue-deep text-white'
+                    : expense > 0
+                    ? 'text-text-primary'
+                    : dow === 0
+                    ? 'text-expense/60'
+                    : dow === 6
+                    ? 'text-blue-main/60'
+                    : 'text-gray-300'
+                }`}
+                style={
+                  expense > 0 && !isToday
+                    ? { backgroundColor: `rgba(214,69,69,${intensity * 0.18})` }
+                    : {}
+                }
+              >
+                {day}
+              </div>
+              {expense > 0 && (
+                <span className="text-[8px] text-expense leading-tight mt-0.5">{fmt(expense)}</span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 export function HomeScreen() {
@@ -24,6 +110,8 @@ export function HomeScreen() {
   const { data: prevData } = useDashboard(prevMonthStr)
   const { data: trend } = useMonthlyTrend(6)
   const { data: budgets } = useBudgets()
+  const { data: transactions } = useTransactions({ yearMonth: selectedMonth })
+  const { data: savingGoals } = useSavingGoals()
 
   const isCurrentMonth = selectedMonth >= dayjs().format('YYYY-MM')
 
@@ -36,18 +124,33 @@ export function HomeScreen() {
 
   const totalExpense = categoryData.reduce((s, d) => s + d.amount, 0)
 
-  const weeklyData = data
-    ? [
-        { name: '지난주', amount: data.lastWeekExpense, color: '#E2E8F0' },
-        { name: '이번주', amount: data.thisWeekExpense, color: '#6F8FAF' },
-      ]
-    : []
-
   const trendData = (trend ?? []).map((t) => ({
     name: dayjs(t.yearMonth).format('M월'),
     income: t.income,
     expense: t.expense,
   }))
+
+  // 순자산 계산
+  const netAsset = (data?.totalSaved ?? 0) - (data?.totalLoanBalance ?? 0)
+
+  // 생활비 예산 잔여 계산 (카테고리: 생활비 or 식비+카페 등)
+  const livingBudget = budgets?.['생활비'] ?? 0
+  const livingSpent = (data?.categoryExpense as Record<string, number> | undefined)?.['생활비'] ?? 0
+  const livingRemain = livingBudget > 0 ? livingBudget - livingSpent : null
+
+  // 일별 지출 집계
+  const dailyExpense = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const tx of transactions ?? []) {
+      if (!tx || tx.flow_type !== '마이너스') continue
+      if (!map[tx.date]) map[tx.date] = 0
+      map[tx.date] += tx.amount
+    }
+    return map
+  }, [transactions])
+
+  // 활성 적금 목표
+  const activeGoals = (savingGoals ?? []).filter((g) => g.is_active)
 
   return (
     <div className="px-4 pt-4 pb-4 space-y-3">
@@ -90,26 +193,135 @@ export function HomeScreen() {
             }`}
           >
             {data.netSaving >= 0 ? '+' : ''}
-            {fmt(data.netSaving)}
+            {fmtFull(data.netSaving)}
           </p>
           <div className="flex items-center gap-0 divide-x divide-gray-100">
             <div className="pr-4">
               <p className="text-[11px] text-gray-400 mb-0.5">수입</p>
-              <p className="text-sm font-bold text-income">{fmt(data.income)}</p>
+              <p className="text-sm font-bold text-income">{fmtFull(data.income)}</p>
             </div>
             <div className="px-4">
               <p className="text-[11px] text-gray-400 mb-0.5">지출</p>
-              <p className="text-sm font-bold text-expense">{fmt(data.expense)}</p>
+              <p className="text-sm font-bold text-expense">{fmtFull(data.expense)}</p>
             </div>
             {data.assetMove > 0 && (
               <div className="pl-4">
                 <p className="text-[11px] text-gray-400 mb-0.5">저축이동</p>
-                <p className="text-sm font-bold text-blue-main">{fmt(data.assetMove)}</p>
+                <p className="text-sm font-bold text-blue-main">{fmtFull(data.assetMove)}</p>
               </div>
             )}
           </div>
         </motion.div>
       ) : null}
+
+      {/* 순자산 + 생활비 잔여 */}
+      {!isLoading && data && (
+        <div className="grid grid-cols-2 gap-3">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.03 }}
+            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+          >
+            <p className="text-[11px] text-gray-400 mb-1">순자산</p>
+            <p className={`text-base font-bold ${netAsset >= 0 ? 'text-income' : 'text-expense'}`}>
+              {netAsset >= 0 ? '+' : ''}{fmt(netAsset)}
+            </p>
+            <p className="text-[9px] text-gray-300 mt-1">저축 - 대출잔액</p>
+          </motion.div>
+          {livingBudget > 0 ? (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.03 }}
+              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+            >
+              <p className="text-[11px] text-gray-400 mb-1">생활비 잔여</p>
+              <p className={`text-base font-bold ${(livingRemain ?? 0) >= 0 ? 'text-income' : 'text-expense'}`}>
+                {fmt(livingRemain ?? 0)}
+              </p>
+              <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.min(100, (livingSpent / livingBudget) * 100)}%`,
+                    backgroundColor: livingSpent / livingBudget > 0.9 ? '#D64545' : '#2F9E73',
+                  }}
+                />
+              </div>
+              <p className="text-[9px] text-gray-300 mt-1">{fmt(livingSpent)} / {fmt(livingBudget)}</p>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.03 }}
+              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+            >
+              <p className="text-[11px] text-gray-400 mb-1">총 대출잔액</p>
+              <p className="text-base font-bold text-expense">{fmt(data.totalLoanBalance)}</p>
+              <p className="text-[9px] text-gray-300 mt-1">총 저축 {fmt(data.totalSaved)}</p>
+            </motion.div>
+          )}
+        </div>
+      )}
+
+      {/* 적금 목표 진행률 */}
+      {activeGoals.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.04 }}
+          className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
+        >
+          <p className="text-sm font-bold text-text-primary mb-3">적금 목표</p>
+          <div className="space-y-3">
+            {activeGoals.map((g) => {
+              const pct = g.target_amount > 0 ? Math.min(100, (g.current_amount / g.target_amount) * 100) : 0
+              const remain = g.target_amount - g.current_amount
+              return (
+                <div key={g.id}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-medium text-text-primary">{g.name}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-bold text-blue-deep">{fmt(g.current_amount)}</span>
+                      <span className="text-[10px] text-gray-300">/ {fmt(g.target_amount)}</span>
+                    </div>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-blue-main transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-[10px] text-gray-400">{Math.round(pct)}% 달성</span>
+                    {remain > 0 && (
+                      <span className="text-[10px] text-gray-300">잔여 {fmt(remain)}</span>
+                    )}
+                    {g.target_date && (
+                      <span className="text-[10px] text-gray-300">
+                        {dayjs(g.target_date).format('YYYY.MM')} 목표
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* 일별 지출 캘린더 */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
+      >
+        <p className="text-sm font-bold text-text-primary mb-3">일별 지출</p>
+        <MiniCalendar yearMonth={selectedMonth} dailyExpense={dailyExpense} />
+      </motion.div>
 
       {/* Category breakdown */}
       {isLoading ? (
@@ -118,7 +330,7 @@ export function HomeScreen() {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
+          transition={{ delay: 0.06 }}
           className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
         >
           <p className="text-sm font-bold text-text-primary mb-4">지출 카테고리</p>
@@ -141,7 +353,7 @@ export function HomeScreen() {
                 ))}
               </Pie>
               <Tooltip
-                formatter={(v: number) => [fmt(v)]}
+                formatter={(v: number) => [fmtFull(v)]}
                 contentStyle={{ borderRadius: 12, border: 'none', fontSize: 12 }}
               />
             </PieChart>
@@ -163,11 +375,12 @@ export function HomeScreen() {
                     </div>
                     <div className="flex items-center gap-2">
                       {prevData && diff !== 0 && (
-                        <span className={`text-[10px] ${diff > 0 ? 'text-expense' : 'text-income'}`}>
-                          {diff > 0 ? '▲' : '▼'} {fmt(Math.abs(diff))}
+                        <span className={`text-[10px] flex items-center gap-0.5 ${diff > 0 ? 'text-expense' : 'text-income'}`}>
+                          {diff > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                          {fmt(Math.abs(diff))}
                         </span>
                       )}
-                      <span className="text-xs font-semibold text-text-primary">{fmt(d.amount)}</span>
+                      <span className="text-xs font-semibold text-text-primary">{fmtFull(d.amount)}</span>
                       {budget && (
                         <span className="text-[10px] text-gray-400">/{fmt(budget)}</span>
                       )}
@@ -214,7 +427,7 @@ export function HomeScreen() {
             <BarChart data={trendData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }} barCategoryGap="30%">
               <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
               <Tooltip
-                formatter={(v: number, name: string) => [fmt(v), name === 'income' ? '수입' : '지출']}
+                formatter={(v: number, name: string) => [fmtFull(v), name === 'income' ? '수입' : '지출']}
                 contentStyle={{ borderRadius: 12, border: 'none', fontSize: 12 }}
               />
               <Bar dataKey="income" fill="#2F9E73" radius={[4, 4, 0, 0]} />
@@ -231,74 +444,6 @@ export function HomeScreen() {
               <span className="text-[10px] text-gray-400">지출</span>
             </div>
           </div>
-        </motion.div>
-      )}
-
-      {/* Weekly comparison */}
-      {isLoading ? (
-        <Skeleton className="h-28" />
-      ) : data && (data.thisWeekExpense > 0 || data.lastWeekExpense > 0) ? (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100"
-        >
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-bold text-text-primary">주간 지출 비교</p>
-            {data.weeklyDiff !== 0 && (
-              <span
-                className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                  data.weeklyDiff > 0 ? 'bg-red-50 text-expense' : 'bg-green-50 text-income'
-                }`}
-              >
-                {data.weeklyDiff > 0 ? '+' : ''}
-                {fmt(data.weeklyDiff)}
-              </span>
-            )}
-          </div>
-          <ResponsiveContainer width="100%" height={80}>
-            <BarChart data={weeklyData} margin={{ top: 4, right: 8, left: 8, bottom: 0 }} barCategoryGap="40%">
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 11, fill: '#94A3B8' }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                formatter={(v: number) => [fmt(v)]}
-                contentStyle={{ borderRadius: 12, border: 'none', fontSize: 12 }}
-              />
-              <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
-                {weeklyData.map((d, i) => (
-                  <Cell key={i} fill={d.color} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </motion.div>
-      ) : null}
-
-      {/* Loan / Savings */}
-      {!isLoading && data && (data.totalLoanBalance > 0 || data.totalSaved > 0) && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="grid grid-cols-2 gap-3"
-        >
-          {data.totalLoanBalance > 0 && (
-            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-              <p className="text-xs text-gray-400 mb-1">총 대출잔액</p>
-              <AmountText amount={data.totalLoanBalance} type="expense" className="text-sm" />
-            </div>
-          )}
-          {data.totalSaved > 0 && (
-            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-              <p className="text-xs text-gray-400 mb-1">총 저축액</p>
-              <AmountText amount={data.totalSaved} type="income" className="text-sm" />
-            </div>
-          )}
         </motion.div>
       )}
 

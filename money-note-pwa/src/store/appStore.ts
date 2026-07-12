@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import dayjs from 'dayjs'
 
-type Tab = '홈' | '입력' | '내역' | '캘린더' | '설정'
+type Tab = '홈' | '입력' | '내역' | '저축' | '설정'
 
 interface AppState {
   activeTab: Tab

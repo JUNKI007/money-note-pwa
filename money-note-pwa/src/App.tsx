@@ -6,7 +6,7 @@ import { AuthScreen } from '@/screens/AuthScreen'
 import { HomeScreen } from '@/screens/HomeScreen'
 import { InputScreen } from '@/screens/InputScreen'
 import { HistoryScreen } from '@/screens/HistoryScreen'
-import { CalendarScreen } from '@/screens/CalendarScreen'
+import { SavingsScreen } from '@/screens/SavingsScreen'
 import { SettingsScreen } from '@/screens/SettingsScreen'
 
 export default function App() {
@@ -22,7 +22,7 @@ export default function App() {
       <div className={activeTab === '홈' ? '' : 'hidden'}><HomeScreen /></div>
       <div className={activeTab === '입력' ? '' : 'hidden'}><InputScreen /></div>
       <div className={activeTab === '내역' ? '' : 'hidden'}><HistoryScreen /></div>
-      <div className={activeTab === '캘린더' ? '' : 'hidden'}><CalendarScreen /></div>
+      <div className={activeTab === '저축' ? '' : 'hidden'}><SavingsScreen /></div>
       <div className={activeTab === '설정' ? '' : 'hidden'}><SettingsScreen /></div>
     </AppShell>
   )

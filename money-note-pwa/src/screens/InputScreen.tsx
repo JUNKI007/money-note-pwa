@@ -21,12 +21,12 @@ type InputTab = FlowType | '고정지출'
 
 const CATEGORIES: Record<FlowType, string[]> = {
   '플러스': ['월급', '부수입', '용돈', '환급', '기타수입'],
-  '마이너스': ['식비', '카페', '쇼핑', '교통', '의료', '문화', '교육', '공과금', '기타소비'],
+  '마이너스': ['식비', '카페', '쇼핑', '교통', '의료', '문화', '교육', '공과금', 'OTT·구독', '기타소비'],
   '이동·저축·상환': ['적금', '비상금저축', '대출상환', '계좌이체'],
 }
 const ALL_CATEGORIES = {
   ...CATEGORIES,
-  '고정지출': ['식비', '카페', '쇼핑', '교통', '의료', '문화', '교육', '공과금', '기타소비',
+  '고정지출': ['식비', '카페', '쇼핑', '교통', '의료', '문화', '교육', '공과금', 'OTT·구독', '기타소비',
                '월급', '부수입', '용돈', '환급', '기타수입', '적금', '비상금저축', '대출상환', '계좌이체'],
 }
 
@@ -382,7 +382,7 @@ export function InputScreen() {
                 >
                   <option value="">선택 안 함</option>
                   {activeLoans.map((l) => (
-                    <option key={l.id} value={l.id}>{l.name} ({l.bank})</option>
+                    <option key={l.loan_id ?? l.id} value={l.loan_id ?? l.id}>{l.name} ({l.member})</option>
                   ))}
                 </select>
               </div>
