@@ -75,6 +75,12 @@ function _route(action, p) {
     case 'getCalendarEvents':    return getCalendarEvents(p);
     case 'updateCalendarEvent':  return updateCalendarEvent(p.event_id, p);
     case 'deleteCalendarEvent':  return deleteCalendarEvent(p.id);
+    // 고정지출
+    case 'getFixedExpenses':     return getFixedExpenses();
+    case 'addFixedExpense':      return addFixedExpense(p);
+    case 'updateFixedExpense':   return updateFixedExpense(p.id, p);
+    case 'deleteFixedExpense':   return deleteFixedExpense(p.id);
+    case 'applyFixedExpenses':   return applyFixedExpenses(p.yearMonth);
     // 거래 수정
     case 'updateTransaction':    return updateTransaction(p.id, p);
     // 월별 추이
