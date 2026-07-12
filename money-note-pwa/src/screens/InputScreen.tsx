@@ -6,7 +6,6 @@ import { useSaveTransaction } from '@/hooks/useTransactions'
 import { useLoans } from '@/hooks/useLoans'
 import { useSavingGoals } from '@/hooks/useSavings'
 import { useAddInstallment } from '@/hooks/useInstallments'
-import { useAddAllowanceEntry } from '@/hooks/useAllowance'
 import {
   useFixedExpenses,
   useAddFixedExpense,
@@ -22,17 +21,14 @@ import { CategoryPicker, MINUS_CATEGORIES, PLUS_CATEGORIES } from '@/components/
 import { CardImport } from '@/components/CardImport'
 
 type FlowType = '플러스' | '마이너스'
-type InputTab = FlowType | '용돈' | '고정지출'
-
+type InputTab = FlowType | '고정지출'
 
 const MEMBERS = ['남편', '아내', '공동']
-const ALLOWANCE_MEMBERS = ['남편', '아내']
 const ALL_FLOW_TYPES: FlowType[] = ['플러스', '마이너스']
 
 const FLOW_COLOR: Record<InputTab, string> = {
   '플러스': 'bg-income text-white',
   '마이너스': 'bg-expense text-white',
-  '용돈': 'bg-purple-500 text-white',
   '고정지출': 'bg-gray-700 text-white',
 }
 
@@ -65,10 +61,7 @@ export function InputScreen() {
   const [catPickerOpen, setCatPickerOpen] = useState(false)
   const [fixedCatPickerOpen, setFixedCatPickerOpen] = useState(false)
 
-  const [allowanceType, setAllowanceType] = useState<'지출' | '입금'>('지출')
-
   const saveTx = useSaveTransaction()
-  const addAllowanceEntry = useAddAllowanceEntry()
   const addInstallment = useAddInstallment()
   const { data: loans } = useLoans()
   const { data: savingGoals } = useSavingGoals()
@@ -162,15 +155,14 @@ export function InputScreen() {
   }
 
   const isFixed = inputTab === '고정지출'
-  const isAllowance = inputTab === '용돈'
 
   return (
     <div className="px-4 pt-4 pb-4 space-y-4">
       <h1 className="text-xl font-bold text-text-primary">거래 입력</h1>
 
-      {/* 탭: 플러스 / 마이너스 / 용돈 / 고정지출 */}
-      <div className="grid grid-cols-4 gap-1.5">
-        {(['플러스', '마이너스', '용돈', '고정지출'] as InputTab[]).map((t) => (
+      {/* 탭: 플러스 / 마이너스 / 고정지출 */}
+      <div className="grid grid-cols-3 gap-1.5">
+        {(['플러스', '마이너스', '고정지출'] as InputTab[]).map((t) => (
           <button
             key={t}
             className={`py-2 rounded-xl text-[11px] font-semibold transition-colors leading-tight
@@ -187,148 +179,8 @@ export function InputScreen() {
         ))}
       </div>
 
-      {/* ── 용돈 입력 뷰 (집안 재정과 완전 분리 — ALLOWANCE 시트만 기록) ── */}
-      {isAllowance ? (
-        <>
-          {/* 입금 / 지출 토글 */}
-          <div className="flex gap-2">
-            {(['지출', '입금'] as const).map((t) => (
-              <button
-                key={t}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors
-                  ${allowanceType === t
-                    ? t === '지출' ? 'bg-expense text-white' : 'bg-income text-white'
-                    : 'bg-card text-text-sub'}`}
-                onClick={() => setAllowanceType(t)}
-              >
-                {t === '지출' ? '💸 지출' : '💰 입금'}
-              </button>
-            ))}
-          </div>
-
-          <div className="bg-purple-50 rounded-2xl px-4 py-2.5">
-            <p className="text-xs text-purple-700">
-              {allowanceType === '지출'
-                ? '용돈 지출은 집안 지출에 포함되지 않아요. 개인 잔액에서만 차감돼요.'
-                : '추가 용돈, 선물 등 개인 입금을 기록해요.'}
-            </p>
-          </div>
-
-          <div className="bg-card rounded-2xl p-4 space-y-3">
-            {/* 날짜 */}
-            <div>
-              <label className="text-xs text-text-sub mb-1 block">날짜</label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary"
-              />
-            </div>
-
-            {/* 멤버 (남편/아내만) */}
-            <div>
-              <label className="text-xs text-text-sub mb-1 block">누구 용돈?</label>
-              <div className="flex gap-2">
-                {ALLOWANCE_MEMBERS.map((m) => (
-                  <button
-                    key={m}
-                    className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors
-                      ${member === m ? 'bg-purple-500 text-white' : 'bg-bg-app text-text-sub'}`}
-                    onClick={() => setMember(m)}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 내역 */}
-            <div>
-              <label className="text-xs text-text-sub mb-1 block">
-                {allowanceType === '지출' ? '사용 내역' : '입금 내역'}
-              </label>
-              <input
-                type="text"
-                value={detail}
-                onChange={(e) => setDetail(e.target.value)}
-                placeholder={allowanceType === '지출' ? '예: 점심, 카페, 쇼핑 등' : '예: 월 용돈, 선물 등'}
-                className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-gray-300"
-              />
-            </div>
-
-            {/* 금액 */}
-            <div>
-              <label className="text-xs text-text-sub mb-1 block">금액 (원)</label>
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0"
-                inputMode="numeric"
-                className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-gray-300"
-              />
-              {amount && !isNaN(Number(amount)) && (
-                <p className="text-xs text-text-sub mt-1">{Number(amount).toLocaleString('ko-KR')}원</p>
-              )}
-            </div>
-
-            {/* 메모 */}
-            <div>
-              <label className="text-xs text-text-sub mb-1 block">메모 (선택)</label>
-              <input
-                type="text"
-                value={memo}
-                onChange={(e) => setMemo(e.target.value)}
-                placeholder="메모"
-                className="w-full bg-bg-app rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-gray-300"
-              />
-            </div>
-          </div>
-
-          <AnimatePresence>
-            {success && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="bg-purple-100 text-purple-700 text-sm font-medium text-center py-3 rounded-xl"
-              >
-                저장되었습니다 ✓
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <Button
-            fullWidth
-            onClick={async () => {
-              if (!amount || isNaN(Number(amount))) return
-              try {
-                await addAllowanceEntry.mutateAsync({
-                  date,
-                  member,
-                  type: allowanceType,
-                  amount: Number(amount),
-                  detail: detail || (allowanceType === '지출' ? '용돈 사용' : '용돈 입금'),
-                  memo,
-                })
-                setSuccess(true)
-                setTimeout(() => {
-                  setSuccess(false)
-                  setDetail(''); setAmount(''); setMemo('')
-                  setActiveTab('홈')
-                }, 800)
-              } catch (e) {
-                alert('저장 실패: ' + (e as Error).message)
-              }
-            }}
-            disabled={!amount || addAllowanceEntry.isPending}
-          >
-            {addAllowanceEntry.isPending ? '저장 중...' : allowanceType === '지출' ? '지출 저장' : '입금 저장'}
-          </Button>
-        </>
-      ) : /* ── 고정지출 관리 뷰 ── */
-      isFixed ? (
+      {/* ── 고정지출 관리 뷰 ── */}
+      {isFixed ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm text-text-sub">매달 1일에 자동 적용됩니다</p>

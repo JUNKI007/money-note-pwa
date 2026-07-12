@@ -8,6 +8,7 @@ import { InputScreen } from '@/screens/InputScreen'
 import { HistoryScreen } from '@/screens/HistoryScreen'
 import { SavingsScreen } from '@/screens/SavingsScreen'
 import { SettingsScreen } from '@/screens/SettingsScreen'
+import { AllowanceScreen } from '@/screens/AllowanceScreen'
 
 export default function App() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -23,6 +24,7 @@ export default function App() {
       <div className={activeTab === '입력' ? '' : 'hidden'}><InputScreen /></div>
       <div className={activeTab === '내역' ? '' : 'hidden'}><HistoryScreen /></div>
       <div className={activeTab === '저축' ? '' : 'hidden'}><SavingsScreen /></div>
+      <div className={activeTab === '용돈' ? '' : 'hidden'}><AllowanceScreen /></div>
       <div className={activeTab === '설정' ? '' : 'hidden'}><SettingsScreen /></div>
     </AppShell>
   )

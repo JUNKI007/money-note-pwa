@@ -8,7 +8,6 @@ import { useLifeBudget } from '@/hooks/useLifeBudget'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useSavingGoals } from '@/hooks/useSavings'
 import { useInstallments } from '@/hooks/useInstallments'
-import { useAllowanceEntries } from '@/hooks/useAllowance'
 import { useAppStore } from '@/store/appStore'
 
 const CAT_COLORS = ['#6F8FAF', '#2F9E73', '#F59E0B', '#8B5CF6', '#EC4899', '#D64545', '#14B8A6', '#F97316']
@@ -115,8 +114,6 @@ export function HomeScreen() {
   const { data: transactions } = useTransactions({ yearMonth: selectedMonth })
   const { data: savingGoals } = useSavingGoals()
   const { data: installments } = useInstallments()
-  const { data: allowanceEntries } = useAllowanceEntries()
-
   const isCurrentMonth = selectedMonth >= dayjs().format('YYYY-MM')
 
   const categoryData = data?.categoryExpense
@@ -160,23 +157,6 @@ export function HomeScreen() {
   const thisMonthInstallmentAmt = activeInstallments.reduce((s, i) => s + i.monthly_amount, 0)
   const totalInstallmentRemain = activeInstallments.reduce((s, i) => s + i.remaining_amount, 0)
 
-  // 용돈 집계 (ALLOWANCE 시트 기반 — 집안 재정과 완전 분리, 누적 잔액)
-  const allowanceData = useMemo(() => {
-    const entries = allowanceEntries ?? []
-    return ['남편', '아내'].map((member) => {
-      const myEntries = entries.filter((e) => e.member === member)
-      // 누적 잔액 (전체 기간)
-      const balance = myEntries.reduce(
-        (s, e) => s + (e.type === '입금' ? e.amount : -e.amount),
-        0,
-      )
-      // 이달 입금 / 지출
-      const thisMonthEntries = myEntries.filter((e) => e.date?.slice(0, 7) === selectedMonth)
-      const thisMonthIn = thisMonthEntries.filter((e) => e.type === '입금').reduce((s, e) => s + e.amount, 0)
-      const thisMonthOut = thisMonthEntries.filter((e) => e.type === '지출').reduce((s, e) => s + e.amount, 0)
-      return { member, balance, thisMonthIn, thisMonthOut, hasData: myEntries.length > 0 }
-    })
-  }, [allowanceEntries, selectedMonth])
 
   return (
     <div className="px-4 pt-4 pb-4 space-y-3">
@@ -464,47 +444,6 @@ export function HomeScreen() {
                       </span>
                     )}
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        </motion.div>
-      )}
-
-      {/* 8. 용돈 (ALLOWANCE 시트 기반 — 누적 잔액, 집안 재정 별개) */}
-      {allowanceData.some((a) => a.hasData) && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.055 }}
-          className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-bold text-text-primary">용돈</p>
-            <p className="text-xs text-gray-400">
-              총 잔액 {fmt(allowanceData.reduce((s, a) => s + a.balance, 0))}
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {allowanceData.map((a) => {
-              const isNeg = a.balance < 0
-              return (
-                <div key={a.member} className="bg-gray-50 rounded-2xl p-3">
-                  <p className="text-xs text-gray-400 mb-0.5">{a.member}</p>
-                  <p className={`text-lg font-bold ${isNeg ? 'text-expense' : 'text-text-primary'}`}>
-                    {isNeg ? '-' : ''}{fmt(Math.abs(a.balance))}
-                  </p>
-                  <p className="text-[10px] text-purple-400 font-medium mb-1">잔액</p>
-                  {(a.thisMonthIn > 0 || a.thisMonthOut > 0) && (
-                    <div className="space-y-0.5 border-t border-gray-200 pt-1.5 mt-1">
-                      {a.thisMonthIn > 0 && (
-                        <p className="text-[10px] text-income">+{fmt(a.thisMonthIn)} 입금</p>
-                      )}
-                      {a.thisMonthOut > 0 && (
-                        <p className="text-[10px] text-expense">-{fmt(a.thisMonthOut)} 사용</p>
-                      )}
-                    </div>
-                  )}
                 </div>
               )
             })}
