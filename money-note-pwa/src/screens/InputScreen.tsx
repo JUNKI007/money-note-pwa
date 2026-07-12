@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Pencil, Trash2, Plus } from 'lucide-react'
+import { Pencil, Trash2, Plus, ChevronRight } from 'lucide-react'
 import dayjs from 'dayjs'
 import { useSaveTransaction } from '@/hooks/useTransactions'
 import { useLoans } from '@/hooks/useLoans'
@@ -18,20 +18,12 @@ import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { CategoryPicker, MINUS_CATEGORIES, PLUS_CATEGORIES } from '@/components/ui/CategoryPicker'
 import { CardImport } from '@/components/CardImport'
 
 type FlowType = '플러스' | '마이너스'
 type InputTab = FlowType | '용돈' | '고정지출'
 
-const CATEGORIES: Record<FlowType, string[]> = {
-  '플러스': ['월급', '부수입', '환급', '기타수입'],
-  '마이너스': ['식비', '카페', '쇼핑', '교통', '의료', '문화', '교육', '공과금', 'OTT·구독', '기타소비'],
-}
-const ALL_CATEGORIES = {
-  ...CATEGORIES,
-  '고정지출': ['식비', '카페', '쇼핑', '교통', '의료', '문화', '교육', '공과금', 'OTT·구독', '기타소비',
-               '월급', '부수입', '용돈', '환급', '기타수입', '적금', '비상금저축', '대출상환', '계좌이체'],
-}
 
 const MEMBERS = ['남편', '아내', '공동']
 const ALLOWANCE_MEMBERS = ['남편', '아내']
@@ -70,6 +62,8 @@ export function InputScreen() {
   const [fixedSheet, setFixedSheet] = useState(false)
   const [editingFixed, setEditingFixed] = useState<FixedExpense | null>(null)
   const [fixedForm, setFixedForm] = useState(emptyFixedForm)
+  const [catPickerOpen, setCatPickerOpen] = useState(false)
+  const [fixedCatPickerOpen, setFixedCatPickerOpen] = useState(false)
 
   const [allowanceType, setAllowanceType] = useState<'지출' | '입금'>('지출')
 
@@ -163,10 +157,8 @@ export function InputScreen() {
     setFixedSheet(false)
   }
 
-  const fixedCats = ALL_CATEGORIES['고정지출']
   const isFixed = inputTab === '고정지출'
   const isAllowance = inputTab === '용돈'
-  const flowType = (isFixed || isAllowance) ? '마이너스' : (inputTab as FlowType)
 
   return (
     <div className="px-4 pt-4 pb-4 space-y-4">
@@ -424,18 +416,17 @@ export function InputScreen() {
               </div>
               <div>
                 <label className="text-xs text-text-sub mb-1 block">카테고리</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {(CATEGORIES[fixedForm.flow_type] ?? fixedCats).map((c) => (
-                    <button
-                      key={c}
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors
-                        ${fixedForm.category === c ? 'bg-blue-deep text-white' : 'bg-bg-app text-text-sub'}`}
-                      onClick={() => setFixedForm((f) => ({ ...f, category: c }))}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
+                <button
+                  onClick={() => setFixedCatPickerOpen(true)}
+                  className="w-full flex items-center justify-between bg-bg-app rounded-xl px-3 py-2.5"
+                >
+                  {fixedForm.category ? (
+                    <span className="text-sm font-medium text-text-primary">{fixedForm.category}</span>
+                  ) : (
+                    <span className="text-sm text-gray-300">카테고리 선택</span>
+                  )}
+                  <ChevronRight size={16} className="text-gray-300" />
+                </button>
               </div>
               <div>
                 <label className="text-xs text-text-sub mb-1 block">구성원</label>
@@ -536,18 +527,17 @@ export function InputScreen() {
             {/* Category */}
             <div>
               <label className="text-xs text-text-sub mb-1 block">카테고리</label>
-              <div className="flex flex-wrap gap-2">
-                {CATEGORIES[flowType].map((c) => (
-                  <button
-                    key={c}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors
-                      ${category === c ? 'bg-blue-deep text-white' : 'bg-bg-app text-text-sub'}`}
-                    onClick={() => { setCategory(c); setLoanId(''); setSavingGoalId('') }}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
+              <button
+                onClick={() => setCatPickerOpen(true)}
+                className="w-full flex items-center justify-between bg-bg-app rounded-xl px-3 py-2.5"
+              >
+                {category ? (
+                  <span className="text-sm font-medium text-text-primary">{category}</span>
+                ) : (
+                  <span className="text-sm text-gray-300">카테고리 선택</span>
+                )}
+                <ChevronRight size={16} className="text-gray-300" />
+              </button>
             </div>
 
             {/* Loan selector */}
@@ -700,6 +690,26 @@ export function InputScreen() {
           </div>
         </>
       )}
+
+      {/* 일반 거래 카테고리 픽커 */}
+      <CategoryPicker
+        isOpen={catPickerOpen}
+        onClose={() => setCatPickerOpen(false)}
+        categories={inputTab === '플러스' ? PLUS_CATEGORIES : MINUS_CATEGORIES}
+        selected={category}
+        onSelect={(c) => { setCategory(c); setLoanId(''); setSavingGoalId('') }}
+        title={inputTab === '플러스' ? '수입 카테고리' : '지출 카테고리'}
+      />
+
+      {/* 고정지출 카테고리 픽커 */}
+      <CategoryPicker
+        isOpen={fixedCatPickerOpen}
+        onClose={() => setFixedCatPickerOpen(false)}
+        categories={fixedForm.flow_type === '플러스' ? PLUS_CATEGORIES : MINUS_CATEGORIES}
+        selected={fixedForm.category}
+        onSelect={(c) => setFixedForm((f) => ({ ...f, category: c }))}
+        title="카테고리 선택"
+      />
     </div>
   )
 }

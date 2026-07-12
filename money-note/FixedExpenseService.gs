@@ -58,7 +58,7 @@ function addFixedExpense(data) {
       created_at:     formatDateTime(new Date()),
       updated_at:     formatDateTime(new Date())
     };
-    addRow('FIXED_EXPENSES', row);
+    appendRow('FIXED_EXPENSES', row);
 
     // 추가한 달 즉시 적용 (오늘이 해당 달이므로 미래 아님)
     _applyOneFixedExpense(row, startYM);
