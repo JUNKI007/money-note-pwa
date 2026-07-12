@@ -35,11 +35,11 @@ function getAllowanceEntries(p) {
       rows = rows.filter(function(r) { return r.member === p.member; });
     }
     if (p && p.yearMonth) {
-      rows = rows.filter(function(r) { return String(r.date || '').slice(0, 7) === p.yearMonth; });
+      rows = rows.filter(function(r) { return formatDate(r.date).slice(0, 7) === p.yearMonth; });
     }
-    // amount 숫자 변환
+    // date 정규화 + amount 숫자 변환 (Date 객체 → 'YYYY-MM-DD' 문자열)
     rows = rows.map(function(r) {
-      return Object.assign({}, r, { amount: Number(r.amount) || 0 });
+      return Object.assign({}, r, { date: formatDate(r.date), amount: Number(r.amount) || 0 });
     });
     return successResponse(rows);
   } catch (e) {

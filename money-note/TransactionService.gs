@@ -146,6 +146,9 @@ function getTransactions(filters) {
       return _dateToStr(b.created_at).localeCompare(_dateToStr(a.created_at));
     });
 
+    // Date 객체 → 'YYYY-MM-DD' 문자열 정규화 (JSON 직렬화 시 UTC 오프셋 방지)
+    rows = rows.map(r => Object.assign({}, r, { date: _dateToStr(r.date) }));
+
     return successResponse(rows);
   } catch (e) {
     return errorResponse('거래 조회 오류: ' + e.message);
